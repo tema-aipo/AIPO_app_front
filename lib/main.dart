@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/main_screen.dart';
 import 'models/auth_manager.dart';
+import 'network/dio_client.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // 환경 변수 로드
+  await dotenv.load(fileName: '.env');
+  // Dio HTTP 클라이언트 초기화
+  DioClient.instance.initialize();
   runApp(const MyApp());
 }
 

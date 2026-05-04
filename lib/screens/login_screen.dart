@@ -160,7 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       height: 56,
                       child: ElevatedButton(
                         onPressed: () {
-                          if (AuthManager.instance.login(_idCtrl.text, _pwCtrl.text)) {
+                          if (AuthManager.instance.loginMock(_idCtrl.text, _pwCtrl.text)) {
                             Navigator.pushAndRemoveUntil(
                               context,
                               MaterialPageRoute(builder: (_) => const MainScreen()),

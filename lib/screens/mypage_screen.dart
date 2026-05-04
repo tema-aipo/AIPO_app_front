@@ -213,8 +213,9 @@ class _MyPageScreenState extends State<MyPageScreen> {
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: () {
-                      AuthManager.instance.logout();
+                    onPressed: () async {
+                      await AuthManager.instance.logout();
+                      if (!context.mounted) return;
                       Navigator.pushAndRemoveUntil(
                          context,
                          MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -255,8 +256,9 @@ class _MyPageScreenState extends State<MyPageScreen> {
               child: const Text('취소', style: TextStyle(color: AppColors.textGray, fontWeight: FontWeight.w700)),
             ),
             TextButton(
-              onPressed: () {
-                AuthManager.instance.logout();
+              onPressed: () async {
+                await AuthManager.instance.logout();
+                if (!context.mounted) return;
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(builder: (_) => const LoginScreen()),
