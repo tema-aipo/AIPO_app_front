@@ -159,7 +159,11 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                     _buildIconButton(
                       icon: _feedbackState == 1 ? Icons.thumb_up : Icons.thumb_up_outlined,
                       isActive: _feedbackState == 1,
-                      onTap: () => setState(() => _feedbackState = 1),
+                      onTap: () {
+                        setState(() {
+                          _feedbackState = _feedbackState == 1 ? 0 : 1;
+                        });
+                      },
                     ),
                     const SizedBox(width: 8),
                     _buildIconButton(
@@ -167,8 +171,13 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                       isActive: _feedbackState == -1,
                       onTap: () {
                         setState(() {
-                          _feedbackState = -1;
-                          _feedbackSubmitted = false; // reset form
+                          if (_feedbackState == -1) {
+                            _feedbackState = 0;
+                            _feedbackSubmitted = false;
+                          } else {
+                            _feedbackState = -1;
+                            _feedbackSubmitted = false;
+                          }
                         });
                       },
                     ),

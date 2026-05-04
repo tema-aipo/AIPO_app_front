@@ -76,44 +76,61 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
-  DateTime _currentDate = DateTime(2026, 4, 1);
-  DateTime _selectedDate = DateTime(2026, 4, 8); // 기본값: 2026년 4월 8일
+  late DateTime _currentDate;
+  late DateTime _selectedDate;
 
   final Set<EventType> _activeFilters = EventType.values.toSet();
 
   // Events dictionary by date key (YYYY-MM-DD)
-  final Map<String, List<CalendarEvent>> _eventsMap = {
-    "2026-04-08": [
-      CalendarEvent("2026-04-08", '스페이스테', EventType.subscription),
-      CalendarEvent("2026-04-08", '바이오메디', EventType.demandForecast),
-    ],
-    "2026-04-10": [
-      CalendarEvent("2026-04-10", '바이오메디', EventType.listing),
-    ],
-    "2026-04-14": [
-      CalendarEvent("2026-04-14", 'AI솔루션즈', EventType.demandForecast),
-    ],
-    "2026-04-15": [
-      CalendarEvent("2026-04-15", 'AI솔루션즈', EventType.demandForecast),
-    ],
-  };
+  late Map<String, List<CalendarEvent>> _eventsMap;
 
   // Detailed Tasks by date key
-  final Map<String, List<DailyTask>> _dailyTasksMap = {
-    "2026-04-08": [
-      DailyTask(score: 92, name: '스페이스테크놀로지', broker: '미래에셋증권', type: EventType.subscription),
-      DailyTask(score: 85, name: '바이오메디컬', broker: '신영증권', type: EventType.demandForecast),
-    ],
-    "2026-04-10": [
-      DailyTask(score: 85, name: '바이오메디컬', broker: '신영증권', type: EventType.listing),
-    ],
-    "2026-04-14": [
-      DailyTask(score: 70, name: 'AI솔루션즈', broker: '한국투자증권', type: EventType.demandForecast),
-    ],
-    "2026-04-15": [
-      DailyTask(score: 70, name: 'AI솔루션즈', broker: '한국투자증권', type: EventType.demandForecast),
-    ],
-  };
+  late Map<String, List<DailyTask>> _dailyTasksMap;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _currentDate = DateTime(now.year, now.month, 1);
+    _selectedDate = DateTime(now.year, now.month, now.day);
+    
+    String dateStr(int offset) {
+      final d = now.add(Duration(days: offset));
+      return "${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}";
+    }
+
+    _eventsMap = {
+      dateStr(0): [
+        CalendarEvent(dateStr(0), '스페이스테', EventType.subscription),
+        CalendarEvent(dateStr(0), '바이오메디', EventType.demandForecast),
+      ],
+      dateStr(2): [
+        CalendarEvent(dateStr(2), '바이오메디', EventType.listing),
+      ],
+      dateStr(6): [
+        CalendarEvent(dateStr(6), 'AI솔루션즈', EventType.demandForecast),
+      ],
+      dateStr(7): [
+        CalendarEvent(dateStr(7), 'AI솔루션즈', EventType.demandForecast),
+      ],
+    };
+
+    _dailyTasksMap = {
+      dateStr(0): [
+        DailyTask(score: 92, name: '스페이스테크놀로지', broker: '미래에셋증권', type: EventType.subscription),
+        DailyTask(score: 85, name: '바이오메디컬', broker: '신영증권', type: EventType.demandForecast),
+      ],
+      dateStr(2): [
+        DailyTask(score: 85, name: '바이오메디컬', broker: '신영증권', type: EventType.listing),
+      ],
+      dateStr(6): [
+        DailyTask(score: 70, name: 'AI솔루션즈', broker: '한국투자증권', type: EventType.demandForecast),
+      ],
+      dateStr(7): [
+        DailyTask(score: 70, name: 'AI솔루션즈', broker: '한국투자증권', type: EventType.demandForecast),
+      ],
+    };
+  }
 
   String _getDateKey(DateTime date) {
     return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
@@ -122,14 +139,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
   void _nextMonth() {
     setState(() {
       _currentDate = DateTime(_currentDate.year, _currentDate.month + 1, 1);
-      _selectedDate = _currentDate; // select 1st of new month
     });
   }
 
   void _prevMonth() {
     setState(() {
       _currentDate = DateTime(_currentDate.year, _currentDate.month - 1, 1);
-      _selectedDate = _currentDate; // select 1st of new month
     });
   }
 
@@ -284,23 +299,51 @@ class _CalendarScreenState extends State<CalendarScreen> {
               color: Colors.transparent, 
               child: Column(
                 children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: isSelected ? AppColors.primary : Colors.transparent,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        cell.date.day.toString(),
-                        style: TextStyle(
-                          color: isSelected ? AppColors.white : (cell.isCurrentMonth ? AppColors.textDark : AppColors.textGray.withOpacity(0.4)),
-                          fontSize: 16,
-                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
-                        ),
-                      ),
-                    ),
+                  Builder(
+                    builder: (context) {
+                      final now = DateTime.now();
+                      final isToday = cell.date.year == now.year && cell.date.month == now.month && cell.date.day == now.day;
+                      
+                      if (isToday) {
+                        return Container(
+                          height: 32,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.primary : AppColors.textDark,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              '오늘',
+                              style: TextStyle(
+                                color: AppColors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        );
+                      } else {
+                        return Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.primary : Colors.transparent,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              cell.date.day.toString(),
+                              style: TextStyle(
+                                color: isSelected ? AppColors.white : (cell.isCurrentMonth ? AppColors.textDark : AppColors.textGray.withOpacity(0.4)),
+                                fontSize: 16,
+                                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                    },
                   ),
                   const SizedBox(height: 6),
                   ...visibleEvents.take(2).map((e) => Padding(

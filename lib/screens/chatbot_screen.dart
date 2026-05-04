@@ -75,12 +75,10 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
   @override
   void initState() {
     super.initState();
-    // 전체 애니메이션 지속 시간 1.2초
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
-    // 진입 즉시 시작
     _controller.forward();
   }
 
@@ -94,15 +92,14 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
 
   // 시간차를 둔 요소 생성기 (Staggered Animation)
   Widget _buildStaggeredItem(Widget child, double start, double end) {
-    final animation = CurvedAnimation(
-      parent: _controller,
-      curve: Interval(start, end, curve: Curves.easeOutCubic),
-    );
+    // 메모리 누수(Memory Leak)를 방지하기 위해 build 내에서 CurvedAnimation 생성 대신 CurveTween 사용
+    final curve = CurveTween(curve: Interval(start, end, curve: Curves.easeOutCubic));
+    final animation = _controller.drive(curve);
 
     return FadeTransition(
       opacity: animation,
       child: SlideTransition(
-        position: Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(animation),
+        position: animation.drive(Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero)),
         child: child,
       ),
     );
@@ -132,12 +129,12 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
             if (chatId == '1') {
               // '1'은 "스페이스테크놀로지 수요예측 결과" 목업용 ID
               _messages.add(ChatMessage(
-                id: DateTime.now().millisecondsSinceEpoch.toString() + '_user',
+                id: '${DateTime.now().millisecondsSinceEpoch}_user',
                 text: '스페이스테크놀로지 수요예측 결과 요약해줘',
                 isUser: true,
               ));
               _messages.add(ChatMessage(
-                id: DateTime.now().millisecondsSinceEpoch.toString() + '_ai',
+                id: '${DateTime.now().millisecondsSinceEpoch}_ai',
                 text: '스페이스테크놀로지 수요예측 결과입니다.',
                 isUser: false,
                 aiSummaryData: {
@@ -150,12 +147,12 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
             } else {
                // 다른 목록 클릭 시 안내 문구
                _messages.add(ChatMessage(
-                id: DateTime.now().millisecondsSinceEpoch.toString() + '_user',
+                id: '${DateTime.now().millisecondsSinceEpoch}_user',
                 text: '과거 대화 기록 불러오기',
                 isUser: true,
               ));
               _messages.add(ChatMessage(
-                id: DateTime.now().millisecondsSinceEpoch.toString() + '_ai',
+                id: '${DateTime.now().millisecondsSinceEpoch}_ai',
                 text: '해당 기록 데이터가 존재하지 않습니다.',
                 isUser: false,
               ));
@@ -254,60 +251,57 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
                     ),
             ),
             // Bottom Input Base
-            _buildStaggeredItem(
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.black.withOpacity(0.04),
-                        blurRadius: 15,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _textController,
-                          onSubmitted: _handleSend,
-                          decoration: const InputDecoration(
-                            hintText: '공모주 이름이나 일정을 물어보세요',
-                            hintStyle: TextStyle(
-                              color: AppColors.textGray,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.black.withOpacity(0.04),
+                      blurRadius: 15,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _textController,
+                        onSubmitted: _handleSend,
+                        decoration: const InputDecoration(
+                          hintText: '공모주 이름이나 일정을 물어보세요',
+                          hintStyle: TextStyle(
+                            color: AppColors.textGray,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
                           ),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 18),
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: Container(
-                          decoration: const BoxDecoration(
-                            color: AppColors.primary,
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.send_rounded, color: AppColors.white, size: 20),
-                            onPressed: () {
-                              _handleSend(_textController.text);
-                            },
-                          ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.send_rounded, color: AppColors.white, size: 20),
+                          onPressed: () {
+                            _handleSend(_textController.text);
+                          },
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-              0.6, 1.0,
             ),
           ],
         ),

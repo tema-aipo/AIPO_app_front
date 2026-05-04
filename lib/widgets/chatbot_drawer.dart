@@ -24,6 +24,8 @@ class ChatbotDrawer extends StatefulWidget {
 }
 
 class _ChatbotDrawerState extends State<ChatbotDrawer> {
+  String _searchQuery = '';
+  
   final List<ChatHistoryItem> _history = [
     ChatHistoryItem(id: '1', title: '스페이스테크놀로지 수요예측 결과', isPinned: true),
     ChatHistoryItem(id: '2', title: '나의 성향 맞춤 종목 추천', isPinned: false),
@@ -45,14 +47,18 @@ class _ChatbotDrawerState extends State<ChatbotDrawer> {
 
   void _deleteAll() {
     setState(() {
-      _history.clear();
+      _history.removeWhere((e) => !e.isPinned);
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final pinnedItems = _history.where((e) => e.isPinned).toList();
-    final recentItems = _history.where((e) => !e.isPinned).toList();
+    final filteredHistory = _searchQuery.isEmpty 
+        ? _history 
+        : _history.where((e) => e.title.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+
+    final pinnedItems = filteredHistory.where((e) => e.isPinned).toList();
+    final recentItems = filteredHistory.where((e) => !e.isPinned).toList();
 
     return Drawer(
       backgroundColor: AppColors.white,
@@ -73,9 +79,13 @@ class _ChatbotDrawerState extends State<ChatbotDrawer> {
                       color: AppColors.bgGray,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const TextField(
-                      readOnly: true, // Mocking disabled filtering functionality
-                      decoration: InputDecoration(
+                    child: TextField(
+                      onChanged: (val) {
+                        setState(() {
+                          _searchQuery = val;
+                        });
+                      },
+                      decoration: const InputDecoration(
                         prefixIcon: Icon(Icons.search, color: AppColors.textLightGray),
                         hintText: '채팅 검색',
                         hintStyle: TextStyle(color: AppColors.textLightGray, fontSize: 15),
