@@ -31,6 +31,7 @@ class AuthManager {
   AuthManager._internal();
 
   final ValueNotifier<UserModel?> currentUser = ValueNotifier(null);
+  UserModel? get user => currentUser.value;
 
   /// 백엔드 로그인 성공 후 호출 - 토큰 저장 및 유저 세팅
   Future<void> loginWithToken({

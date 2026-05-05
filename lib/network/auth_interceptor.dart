@@ -39,6 +39,13 @@ class AuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
+    // 로그인, 회원가입, 재발급 요청은 토큰을 삽입하지 않음
+    if (options.path.contains(ApiEndpoints.login) ||
+        options.path.contains(ApiEndpoints.register) ||
+        options.path.contains(ApiEndpoints.reissue)) {
+      return handler.next(options);
+    }
+
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_accessTokenKey);
     if (token != null) {
@@ -53,6 +60,13 @@ class AuthInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
+    // 1. 이미 reissue 요청인데 401이 난 경우 (무한 루프 방지)
+    // 2. 로그인 요청인데 401이 난 경우 (단순 비밀번호 틀림)
+    if (err.requestOptions.path.contains(ApiEndpoints.reissue) ||
+        err.requestOptions.path.contains(ApiEndpoints.login)) {
+      return handler.next(err);
+    }
+
     if (err.response?.statusCode == 401) {
       final prefs = await SharedPreferences.getInstance();
       final refreshToken = prefs.getString(_refreshTokenKey);

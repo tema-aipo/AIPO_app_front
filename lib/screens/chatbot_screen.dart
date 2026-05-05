@@ -4,6 +4,7 @@ import '../widgets/chatbot_drawer.dart';
 import '../widgets/chat_message_bubble.dart';
 import '../models/chat_message.dart';
 import '../models/auth_manager.dart';
+import '../services/chat_service.dart';
 
 class ChatbotScreen extends StatefulWidget {
   const ChatbotScreen({super.key});
@@ -13,51 +14,121 @@ class ChatbotScreen extends StatefulWidget {
 }
 
 class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+  final ChatService _chatService = ChatService();
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  
+  late AnimationController _animationController;
   final List<ChatMessage> _messages = [];
+  String? _currentSessionId;
+  bool _isTyping = false;
 
-  void _handleSend(String query) {
-    if (query.trim().isEmpty) return;
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _animationController.forward();
+    
+    // 초기 세션 목록 로드 (Drawer에서 처리하거나 여기서 미리 할 수 있음)
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _textController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSend(String query) async {
+    if (query.trim().isEmpty || _isTyping) return;
+
+    final userMessage = ChatMessage(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      text: query.trim(),
+      isUser: true,
+    );
 
     setState(() {
-      _messages.add(ChatMessage(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        text: query.trim(),
-        isUser: true,
-      ));
+      _messages.add(userMessage);
+      _isTyping = true;
     });
     
     _textController.clear();
     _scrollToBottom();
 
-    // Mock AI response
-    Future.delayed(const Duration(milliseconds: 1000), () {
+    try {
+      // 1. 세션이 없으면 생성
+      if (_currentSessionId == null) {
+        final session = await _chatService.createSession(title: query.trim());
+        _currentSessionId = session['sessionId'].toString();
+      }
+
+      // 2. 메시지 전송
+      final response = await _chatService.sendMessage(
+        sessionId: _currentSessionId!,
+        message: query.trim(),
+      );
+
+      // 3. 응답 처리
+      final aiMessage = ChatMessage(
+        id: response['messageId'].toString(),
+        text: response['content'] ?? '',
+        isUser: false,
+        aiSummaryData: response['summaryData'] != null ? Map<String, String>.from(response['summaryData']) : null,
+        aiSecondaryText: response['recommendationText'],
+      );
+
       if (!mounted) return;
       setState(() {
-        if (query.contains('스페이스테크놀로지')) {
-          _messages.add(ChatMessage(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
-            text: '스페이스테크놀로지 수요예측 결과입니다.',
-            isUser: false,
-            aiSummaryData: {
-              '기관 경쟁률': '850:1',
-              '의무보유 확약률': '12.5%',
-              '공모가': '25,000원 (상단 초과)',
-            },
-            aiSecondaryText: '경쟁률은 다소 높으나, 확약률이 평균 수준입니다. 사용자 님의 안정형 성향을 고려할 때, 단기 변동성에 주의가 필요합니다.',
-          ));
-        } else {
-          _messages.add(ChatMessage(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
-            text: '제가 아직 해당 정보는 준비하지 못했어요!',
-            isUser: false,
-          ));
-        }
+        _messages.add(aiMessage);
+        _isTyping = false;
       });
       _scrollToBottom();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isTyping = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('AI 응답을 가져오지 못했습니다: $e')),
+      );
+    }
+  }
+
+  Future<void> _loadSessionMessages(String sessionId) async {
+    setState(() {
+      _messages.clear();
+      _currentSessionId = sessionId;
+      _isTyping = true;
     });
+
+    try {
+      final history = await _chatService.getMessages(sessionId);
+      final List<ChatMessage> loadedMessages = history.map((m) {
+        return ChatMessage(
+          id: m['messageId'].toString(),
+          text: m['content'] ?? '',
+          isUser: m['role'] == 'USER',
+          aiSummaryData: m['summaryData'] != null ? Map<String, String>.from(m['summaryData']) : null,
+          aiSecondaryText: m['recommendationText'],
+        );
+      }).toList();
+
+      if (!mounted) return;
+      setState(() {
+        _messages.addAll(loadedMessages);
+        _isTyping = false;
+      });
+      _scrollToBottom();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isTyping = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('대화 기록을 불러오지 못했습니다: $e')),
+      );
+    }
   }
 
   void _scrollToBottom() {
@@ -72,29 +143,9 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
     });
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    _textController.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  // 시간차를 둔 요소 생성기 (Staggered Animation)
   Widget _buildStaggeredItem(Widget child, double start, double end) {
-    // 메모리 누수(Memory Leak)를 방지하기 위해 build 내에서 CurvedAnimation 생성 대신 CurveTween 사용
     final curve = CurveTween(curve: Interval(start, end, curve: Curves.easeOutCubic));
-    final animation = _controller.drive(curve);
+    final animation = _animationController.drive(curve);
 
     return FadeTransition(
       opacity: animation,
@@ -107,9 +158,8 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
-    final user = AuthManager.instance.currentUser.value;
+    final user = AuthManager.instance.user;
     final userName = user?.name ?? '사용자';
-    // 만약 성향 문자열이 '#안정형' 이라면 앞자리 '#' 기호를 떼고 조립하여 자연스럽게 표기
     final userTypeRaw = user?.investmentType ?? '#안정형';
     final userTypeStr = userTypeRaw.startsWith('#') ? userTypeRaw.substring(1) : userTypeRaw;
 
@@ -119,46 +169,13 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
         onNewChat: () {
           setState(() {
             _messages.clear();
+            _currentSessionId = null;
           });
-          _controller.reset();
-          _controller.forward();
+          _animationController.reset();
+          _animationController.forward();
         },
         onLoadChat: (chatId) {
-          setState(() {
-            _messages.clear(); // 기존 메시지 비우기
-            if (chatId == '1') {
-              // '1'은 "스페이스테크놀로지 수요예측 결과" 목업용 ID
-              _messages.add(ChatMessage(
-                id: '${DateTime.now().millisecondsSinceEpoch}_user',
-                text: '스페이스테크놀로지 수요예측 결과 요약해줘',
-                isUser: true,
-              ));
-              _messages.add(ChatMessage(
-                id: '${DateTime.now().millisecondsSinceEpoch}_ai',
-                text: '스페이스테크놀로지 수요예측 결과입니다.',
-                isUser: false,
-                aiSummaryData: {
-                  '기관 경쟁률': '850:1',
-                  '의무보유 확약률': '12.5%',
-                  '공모가': '25,000원 (상단 초과)',
-                },
-                aiSecondaryText: '경쟁률은 다소 높으나, 확약률이 평균 수준입니다. 사용자 님의 안정형 성향을 고려할 때, 단기 변동성에 주의가 필요합니다.',
-              ));
-            } else {
-               // 다른 목록 클릭 시 안내 문구
-               _messages.add(ChatMessage(
-                id: '${DateTime.now().millisecondsSinceEpoch}_user',
-                text: '과거 대화 기록 불러오기',
-                isUser: true,
-              ));
-              _messages.add(ChatMessage(
-                id: '${DateTime.now().millisecondsSinceEpoch}_ai',
-                text: '해당 기록 데이터가 존재하지 않습니다.',
-                isUser: false,
-              ));
-            }
-          });
-          _scrollToBottom();
+          _loadSessionMessages(chatId);
         },
       ),
       appBar: AppBar(
@@ -168,171 +185,124 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
         leading: Builder(
           builder: (context) => IconButton(
             icon: const Icon(Icons.menu, color: AppColors.textDark),
-            onPressed: () {
-              Scaffold.of(context).openDrawer();
-            },
+            onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
         title: const Text(
           'AIPO',
-          style: TextStyle(
-            color: AppColors.primary,
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.2,
-          ),
+          style: TextStyle(color: AppColors.primary, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1.2),
         ),
       ),
       body: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              child: _messages.isEmpty
-                  ? SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildStaggeredItem(
-                            Text(
-                              '안녕하세요, $userName 님!\n공모주에 대해 무엇이든 물어보세요.',
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.textDark,
-                                height: 1.4,
-                              ),
-                            ),
-                            0.0, 0.3,
-                          ),
-                          const SizedBox(height: 44),
-                          _buildStaggeredItem(
-                            const Text(
-                              '추천 질문',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textDark,
-                              ),
-                            ),
-                            0.1, 0.4,
-                          ),
-                          const SizedBox(height: 16),
-                          _buildStaggeredItem(
-                            _buildQuestionCard('스페이스테크놀로지 수요예측 결과 요약해줘'),
-                            0.2, 0.5,
-                          ),
-                          const SizedBox(height: 12),
-                          _buildStaggeredItem(
-                            _buildQuestionCard('나의 \'$userTypeStr\' 성향에 맞는 이번 주 공모주는?'),
-                            0.3, 0.6,
-                          ),
-                          const SizedBox(height: 12),
-                          _buildStaggeredItem(
-                            _buildQuestionCard('바이오메디컬 상장 일정 알려줘'),
-                            0.4, 0.7,
-                          ),
-                          const SizedBox(height: 12),
-                          _buildStaggeredItem(
-                            _buildQuestionCard('공모주 청약하는 방법 알려줘'),
-                            0.5, 0.8,
-                          ),
-                        ],
-                      ),
-                    )
+              child: _messages.isEmpty && !_isTyping
+                  ? _buildWelcomeScreen(userName, userTypeStr)
                   : ListView.builder(
                       controller: _scrollController,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-                      itemCount: _messages.length,
+                      itemCount: _messages.length + (_isTyping && _messages.isNotEmpty && _messages.last.isUser ? 1 : 0),
                       itemBuilder: (context, index) {
+                        if (index == _messages.length) {
+                          return _buildTypingIndicator();
+                        }
                         return ChatMessageBubble(message: _messages[index]);
                       },
                     ),
             ),
-            // Bottom Input Base
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.black.withOpacity(0.04),
-                      blurRadius: 15,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _textController,
-                        onSubmitted: _handleSend,
-                        decoration: const InputDecoration(
-                          hintText: '공모주 이름이나 일정을 물어보세요',
-                          hintStyle: TextStyle(
-                            color: AppColors.textGray,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: Container(
-                        decoration: const BoxDecoration(
-                          color: AppColors.primary,
-                          shape: BoxShape.circle,
-                        ),
-                        child: IconButton(
-                          icon: const Icon(Icons.send_rounded, color: AppColors.white, size: 20),
-                          onPressed: () {
-                            _handleSend(_textController.text);
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            _buildInputArea(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildQuestionCard(String text) {
-    return Material(
-      color: AppColors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: AppColors.borderGray.withOpacity(0.8)),
-      ),
-      child: InkWell(
-        onTap: () {
-          _handleSend(text);
-        },
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textDark,
+  Widget _buildWelcomeScreen(String userName, String userTypeStr) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildStaggeredItem(
+            Text(
+              '안녕하세요, $userName 님!\n공모주에 대해 무엇이든 물어보세요.',
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.textDark, height: 1.4),
             ),
+            0.0, 0.3,
           ),
+          const SizedBox(height: 44),
+          _buildStaggeredItem(
+            const Text('추천 질문', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textDark)),
+            0.1, 0.4,
+          ),
+          const SizedBox(height: 16),
+          _buildStaggeredItem(_buildQuestionCard('이번 주 청약 가능한 공모주 알려줘'), 0.2, 0.5),
+          const SizedBox(height: 12),
+          _buildStaggeredItem(_buildQuestionCard('내 \'$userTypeStr\' 성향에 맞는 종목 추천해줘'), 0.3, 0.6),
+          const SizedBox(height: 12),
+          _buildStaggeredItem(_buildQuestionCard('공모주 투자 시 주의할 점이 뭐야?'), 0.4, 0.7),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputArea() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
+          boxShadow: [BoxShadow(color: AppColors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 4))],
         ),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _textController,
+                onSubmitted: _handleSend,
+                enabled: !_isTyping,
+                decoration: const InputDecoration(
+                  hintText: '궁금한 점을 물어보세요',
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                ),
+              ),
+            ),
+            IconButton(
+              icon: Icon(Icons.send_rounded, color: _isTyping ? AppColors.textGray : AppColors.primary),
+              onPressed: () => _handleSend(_textController.text),
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypingIndicator() {
+    return const Padding(
+      padding: EdgeInsets.all(16.0),
+      child: Row(
+        children: [
+          CircleAvatar(backgroundColor: AppColors.bgLightBlue, radius: 16, child: Icon(Icons.smart_toy_outlined, color: AppColors.primary, size: 20)),
+          SizedBox(width: 12),
+          Text('AIPO가 생각 중입니다...', style: TextStyle(color: AppColors.textGray, fontSize: 13, fontStyle: FontStyle.italic)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuestionCard(String text) {
+    return GestureDetector(
+      onTap: () => _handleSend(text),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.borderGray.withOpacity(0.8))),
+        child: Text(text, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textDark)),
       ),
     );
   }
