@@ -32,7 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isLoading = true);
     try {
       final data = await _ipoService.getHomeData(
-        tab: _filterKeys[_selectedFilterIndex],
+        _filterKeys[_selectedFilterIndex],
       );
       setState(() {
         _homeData = data;
@@ -65,8 +65,14 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    final featuredIpo = _homeData?['featuredIpos']?.isNotEmpty == true 
-        ? _homeData!['featuredIpos'][0] : null;
+    // 1. 추천 종목 추출 (조회 로그 없으면 매력지수나 트렌딩 종목으로 대체)
+    final featuredIpo = (_homeData?['featuredIpos']?.isNotEmpty == true)
+        ? _homeData!['featuredIpos'][0]
+        : (_homeData?['attractivenessItems']?.isNotEmpty == true)
+            ? _homeData!['attractivenessItems'][0]
+            : (_homeData?['trendingIpos']?.isNotEmpty == true)
+                ? _homeData!['trendingIpos'][0]
+                : null;
     final trendingIpos = _homeData?['trendingIpos'] ?? [];
     final attractivenessItems = _homeData?['attractiveness']?['items'] ?? [];
     final userType = AuthManager.instance.user?.investmentType ?? '#안정형';

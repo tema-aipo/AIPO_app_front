@@ -10,7 +10,7 @@ class ApiEndpoints {
   static const String logout = '/auth/logout';
 
   // ── User ──────────────────────────────────────────────
-  static const String myProfile = '/user/me';
+  static const String myProfile = '/users/me';
 
   // ── Home (대시보드) ────────────────────────────────────
   static const String home = '/home';

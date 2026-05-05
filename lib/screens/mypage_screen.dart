@@ -184,8 +184,15 @@ class _MyPageScreenState extends State<MyPageScreen> {
       itemCount: _favorites.length,
       itemBuilder: (context, index) {
         final item = _favorites[index];
+        final String ipoId = item['ipoId']?.toString() ?? '';
+        final String ipoName = item['name'] ?? '정보 없음';
+        final String leadManager = item['leadManager'] ?? '-';
+
         return GestureDetector(
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => IpoDetailScreen(ipoId: item['ipoId'].toString(), ipoName: item['name']))),
+          onTap: () => Navigator.push(
+            context, 
+            MaterialPageRoute(builder: (_) => IpoDetailScreen(ipoId: ipoId, ipoName: ipoName))
+          ),
           child: Container(
             margin: const EdgeInsets.only(bottom: 16),
             padding: const EdgeInsets.all(20),
@@ -197,13 +204,13 @@ class _MyPageScreenState extends State<MyPageScreen> {
             child: Row(
               children: [
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(item['name'], style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                  Text(ipoName, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
-                  Text(item['leadManager'] ?? '-', style: const TextStyle(color: AppColors.textGray, fontSize: 13)),
+                  Text(leadManager, style: const TextStyle(color: AppColors.textGray, fontSize: 13)),
                 ])),
                 IconButton(
                   icon: const Icon(Icons.favorite, color: AppColors.primaryRed),
-                  onPressed: () => _toggleFavorite(item['ipoId'].toString(), true),
+                  onPressed: () => _toggleFavorite(ipoId, true),
                 ),
               ],
             ),

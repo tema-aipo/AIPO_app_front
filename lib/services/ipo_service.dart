@@ -6,16 +6,22 @@ import '../network/api_endpoints.dart';
 class IpoService {
   final Dio _dio = DioClient.instance.dio;
 
-  // ── 홈 화면 데이터 조회 ───────────────────────────────
-  /// 홈 화면의 대표 공모주, 트렌딩, 매력지수 탭 데이터를 가져옵니다.
-  /// [tab] : 'recentGrowth', 'subscriptionUpcoming', 'favorite' 중 하나 (기본값 'recentGrowth')
-  Future<Map<String, dynamic>> getHomeData({String tab = 'recentGrowth'}) async {
+  // ── 홈 대화면 데이터 조회 ──────────────────────────
+  /// 홈 화면에 필요한 모든 정보(맞춤, 인기, 매력지수 등)를 한 번에 가져옵니다.
+  Future<Map<String, dynamic>> getHomeData(String tab) async {
     try {
       final response = await _dio.get(
         ApiEndpoints.home,
         queryParameters: {'tab': tab},
       );
-      return response.data as Map<String, dynamic>;
+      final data = response.data as Map<String, dynamic>;
+      
+      // 백엔드 codex 브랜치 DTO 키 매핑 유연성 확보
+      return {
+        'featuredIpos': data['featuredIpos'] ?? data['featured'] ?? [],
+        'trendingIpos': data['trendingIpos'] ?? data['trending'] ?? [],
+        'attractivenessItems': data['attractivenessItems'] ?? data['attractive'] ?? [],
+      };
     } catch (e) {
       rethrow;
     }

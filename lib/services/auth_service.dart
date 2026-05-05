@@ -53,16 +53,27 @@ class AuthService {
       );
 
       final data = response.data;
+      
+      // 토큰 데이터 추출 (중첩 구조 대응)
+      final tokenData = data['tokenDto'] ?? data;
+      final accessToken = tokenData['accessToken'] as String? ?? '';
+      final refreshToken = tokenData['refreshToken'] as String? ?? '';
+      
+      // 유저 데이터 추출 (중첩 구조 대응)
+      final userData = data['userDto'] ?? data;
+      final userId = (userData['userId'] ?? userData['id'] ?? 0).toString();
+      final userName = userData['userName'] ?? userData['name'] ?? '사용자';
+      final investmentType = userData['investmentType'] ?? '안정형';
 
       // 토큰 저장 + 유저 세팅
       await AuthManager.instance.loginWithToken(
-        accessToken: data['accessToken'] as String,
-        refreshToken: data['refreshToken'] as String,
+        accessToken: accessToken,
+        refreshToken: refreshToken,
         user: UserModel(
-          id: (data['userId'] as int).toString(),
-          name: data['userName'] as String? ?? '',
-          email: '',
-          investmentType: '#안정형', // 기본값, 나중에 서버에서 가져옴
+          id: userId,
+          name: userName,
+          email: userData['email'] ?? '',
+          investmentType: investmentType.startsWith('#') ? investmentType : '#$investmentType',
         ),
       );
     } on DioException catch (e) {
