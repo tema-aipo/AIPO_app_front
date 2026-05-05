@@ -3,7 +3,7 @@ import 'main_screen.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/signup_stepper.dart';
-import '../models/auth_manager.dart';
+import '../services/auth_service.dart';
 
 enum InvestmentProfile { stable, aggressive, neutral, pending }
 
@@ -54,15 +54,79 @@ final Map<InvestmentProfile, ProfileData> profileDataMap = {
   ),
 };
 
-class SignupStep3Screen extends StatelessWidget {
+class SignupStep3Screen extends StatefulWidget {
   final bool isSkipped;
   final bool isRetest;
+  final Map<String, String>? signupData;
   
-  const SignupStep3Screen({super.key, this.isSkipped = false, this.isRetest = false});
+  const SignupStep3Screen({
+    super.key,
+    this.isSkipped = false,
+    this.isRetest = false,
+    this.signupData,
+  });
+
+  @override
+  State<SignupStep3Screen> createState() => _SignupStep3ScreenState();
+}
+
+class _SignupStep3ScreenState extends State<SignupStep3Screen> {
+  bool _isLoading = false;
+  final AuthService _authService = AuthService();
+
+  Future<void> _handleComplete() async {
+    if (widget.isRetest) {
+      // 재검사의 경우 바로 메인으로
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const MainScreen()),
+        (route) => false,
+      );
+      return;
+    }
+
+    // 신규 회원가입의 경우 API 호출
+    final data = widget.signupData;
+    if (data == null) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    setState(() => _isLoading = true);
+    try {
+      // 1. 회원가입 API 호출
+      await _authService.register(
+        loginId: data['loginId']!,
+        password: data['password']!,
+        userName: data['userName']!,
+        email: data['email'],
+      );
+
+      // 2. 자동 로그인
+      await _authService.login(
+        loginId: data['loginId']!,
+        password: data['password']!,
+      );
+
+      if (!mounted) return;
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const MainScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final InvestmentProfile currentProfile = isSkipped ? InvestmentProfile.pending : InvestmentProfile.stable;
+    final InvestmentProfile currentProfile = widget.isSkipped ? InvestmentProfile.pending : InvestmentProfile.stable;
     final ProfileData data = profileDataMap[currentProfile]!;
     final bool isPending = currentProfile == InvestmentProfile.pending;
 
@@ -72,8 +136,8 @@ class SignupStep3Screen extends StatelessWidget {
         backgroundColor: AppColors.white,
         elevation: 0,
         centerTitle: true,
-        automaticallyImplyLeading: false, // No back button
-        title: Text(isRetest ? '검사 결과' : '회원가입', style: AppTextStyles.appBarTitle),
+        automaticallyImplyLeading: false,
+        title: Text(widget.isRetest ? '검사 결과' : '회원가입', style: AppTextStyles.appBarTitle),
       ),
       body: SafeArea(
         child: Padding(
@@ -83,11 +147,11 @@ class SignupStep3Screen extends StatelessWidget {
             children: [
               const SizedBox(height: 32),
               
-              if (!isRetest) const SignupStepper(currentStep: 3),
-              if (!isRetest) const SizedBox(height: 48),
+              if (!widget.isRetest) const SignupStepper(currentStep: 3),
+              if (!widget.isRetest) const SizedBox(height: 48),
               
               Text(
-                isRetest ? '새로운 성향 분석이\n완료되었습니다 🎉' : '환영합니다!\n회원가입이 완료되었습니다 🎉',
+                widget.isRetest ? '새로운 성향 분석이\n완료되었습니다 🎉' : '환영합니다!\n회원가입이 완료되었습니다 🎉',
                 textAlign: TextAlign.center,
                 style: AppTextStyles.h2,
               ),
@@ -183,30 +247,7 @@ class SignupStep3Screen extends StatelessWidget {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: () {
-                    if (isRetest) {
-                      AuthManager.instance.updateInvestmentType(data.title);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text('고객님의 성향 분석 결과가 반영되었습니다.'),
-                          duration: const Duration(seconds: 2),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                      );
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (_) => const MainScreen()),
-                        (route) => false,
-                      );
-                    } else {
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (_) => const MainScreen()),
-                        (route) => false,
-                      );
-                    }
-                  },
+                  onPressed: _isLoading ? null : _handleComplete,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: AppColors.white,
@@ -215,7 +256,16 @@ class SignupStep3Screen extends StatelessWidget {
                     ),
                     elevation: 0,
                   ),
-                  child: Text(isRetest ? '완료' : 'AIPO 시작하기', style: AppTextStyles.buttonText),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.5,
+                          ),
+                        )
+                      : Text(widget.isRetest ? '완료' : 'AIPO 시작하기', style: AppTextStyles.buttonText),
                 ),
               ),
               const SizedBox(height: 32),

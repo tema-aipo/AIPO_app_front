@@ -15,25 +15,45 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _obscurePassword = true;
   bool _obscurePasswordConfirm = true;
 
-  Widget _buildTextField(String hint) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: AppColors.bgGray,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: TextField(
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(
-            color: AppColors.textGray,
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-          ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-        ),
-      ),
+  final _nameCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _idCtrl = TextEditingController();
+  final _pwCtrl = TextEditingController();
+  final _pwConfirmCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _idCtrl.dispose();
+    _pwCtrl.dispose();
+    _pwConfirmCtrl.dispose();
+    super.dispose();
+  }
+
+  bool _validate() {
+    if (_nameCtrl.text.isEmpty) {
+      _showError('이름을 입력해 주세요.');
+      return false;
+    }
+    if (_idCtrl.text.isEmpty) {
+      _showError('아이디를 입력해 주세요.');
+      return false;
+    }
+    if (_pwCtrl.text.isEmpty) {
+      _showError('비밀번호를 입력해 주세요.');
+      return false;
+    }
+    if (_pwCtrl.text != _pwConfirmCtrl.text) {
+      _showError('비밀번호가 일치하지 않습니다.');
+      return false;
+    }
+    return true;
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
     );
   }
 
@@ -69,10 +89,13 @@ class _SignupScreenState extends State<SignupScreen> {
                     
                     const SizedBox(height: 48),
                     
-                    _buildTextField('이름'),
+                    // 이름
+                    _buildTextField('이름', _nameCtrl),
                     
-                    _buildTextField('이메일'),
+                    // 이메일
+                    _buildTextField('이메일', _emailCtrl),
                     
+                    // 아이디 + 중복확인
                     Container(
                       margin: const EdgeInsets.only(bottom: 16),
                       child: Row(
@@ -83,8 +106,9 @@ class _SignupScreenState extends State<SignupScreen> {
                                 color: AppColors.bgGray,
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              child: const TextField(
-                                decoration: InputDecoration(
+                              child: TextField(
+                                controller: _idCtrl,
+                                decoration: const InputDecoration(
                                   hintText: '아이디',
                                   hintStyle: TextStyle(
                                     color: AppColors.textGray,
@@ -121,6 +145,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       ),
                     ),
                     
+                    // 비밀번호
                     Container(
                       margin: const EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(
@@ -128,6 +153,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: TextField(
+                        controller: _pwCtrl,
                         obscureText: _obscurePassword,
                         decoration: InputDecoration(
                           hintText: '비밀번호',
@@ -153,6 +179,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       ),
                     ),
                     
+                    // 비밀번호 확인
                     Container(
                       margin: const EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(
@@ -160,6 +187,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: TextField(
+                        controller: _pwConfirmCtrl,
                         obscureText: _obscurePasswordConfirm,
                         decoration: InputDecoration(
                           hintText: '비밀번호 확인',
@@ -193,9 +221,19 @@ class _SignupScreenState extends State<SignupScreen> {
                       height: 56,
                       child: ElevatedButton(
                         onPressed: () {
+                          if (!_validate()) return;
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => const SignupStep2Screen()),
+                            MaterialPageRoute(
+                              builder: (_) => SignupStep2Screen(
+                                signupData: {
+                                  'loginId': _idCtrl.text,
+                                  'password': _pwCtrl.text,
+                                  'userName': _nameCtrl.text,
+                                  'email': _emailCtrl.text,
+                                },
+                              ),
+                            ),
                           );
                         },
                         style: ElevatedButton.styleFrom(
@@ -215,6 +253,29 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(String hint, TextEditingController controller) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: AppColors.bgGray,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: TextField(
+        controller: controller,
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: const TextStyle(
+            color: AppColors.textGray,
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+          ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         ),
       ),
     );

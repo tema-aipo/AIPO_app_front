@@ -12,7 +12,8 @@ class SurveyQuestion {
 
 class SignupStep2Screen extends StatefulWidget {
   final bool isRetest;
-  const SignupStep2Screen({super.key, this.isRetest = false});
+  final Map<String, String>? signupData;
+  const SignupStep2Screen({super.key, this.isRetest = false, this.signupData});
 
   @override
   State<SignupStep2Screen> createState() => _SignupStep2ScreenState();
@@ -59,7 +60,7 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
         context,
         MaterialPageRoute(
             builder: (_) =>
-                SignupStep3Screen(isSkipped: false, isRetest: widget.isRetest)),
+                SignupStep3Screen(isSkipped: false, isRetest: widget.isRetest, signupData: widget.signupData)),
       );
     }
   }
@@ -92,7 +93,7 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
-                      builder: (_) => const SignupStep3Screen(isSkipped: true)),
+                      builder: (_) => SignupStep3Screen(isSkipped: true, signupData: widget.signupData)),
                 );
               },
               child: const Text('스킵하기',

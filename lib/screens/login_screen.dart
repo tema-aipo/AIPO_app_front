@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'main_screen.dart';
 import 'signup_screen.dart';
-import '../models/auth_manager.dart';
+import '../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,8 +12,10 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
+  bool _isLoading = false;
   final TextEditingController _idCtrl = TextEditingController();
   final TextEditingController _pwCtrl = TextEditingController();
+  final AuthService _authService = AuthService();
 
   @override
   void dispose() {
@@ -54,11 +56,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         fontWeight: FontWeight.w500,
                         color: Color(0xFF757575),
                       ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      '(테스트 임시 계정: 아이디 guest, 비밀번호 1234)',
-                      style: TextStyle(fontSize: 13, color: Color(0xFF0066FF), fontWeight: FontWeight.w500),
                     ),
                     const SizedBox(height: 24),
                     
@@ -159,17 +156,33 @@ class _LoginScreenState extends State<LoginScreen> {
                     SizedBox(
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: () {
-                          if (AuthManager.instance.loginMock(_idCtrl.text, _pwCtrl.text)) {
-                            Navigator.pushAndRemoveUntil(
-                              context,
+                        onPressed: _isLoading ? null : () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final navigator = Navigator.of(context);
+                          if (_idCtrl.text.isEmpty || _pwCtrl.text.isEmpty) {
+                            messenger.showSnackBar(
+                              const SnackBar(content: Text('아이디와 비밀번호를 입력해 주세요.')),
+                            );
+                            return;
+                          }
+                          setState(() => _isLoading = true);
+                          try {
+                            await _authService.login(
+                              loginId: _idCtrl.text,
+                              password: _pwCtrl.text,
+                            );
+                            if (!mounted) return;
+                            navigator.pushAndRemoveUntil(
                               MaterialPageRoute(builder: (_) => const MainScreen()),
                               (Route<dynamic> route) => false,
                             );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('아이디 또는 비밀번호가 일치하지 않습니다.'))
+                          } catch (e) {
+                            if (!mounted) return;
+                            messenger.showSnackBar(
+                              SnackBar(content: Text(e.toString())),
                             );
+                          } finally {
+                            if (mounted) setState(() => _isLoading = false);
                           }
                         },
                         style: ElevatedButton.styleFrom(
