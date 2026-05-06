@@ -16,11 +16,13 @@ class IpoService {
       );
       final data = response.data as Map<String, dynamic>;
       
-      // 백엔드 codex 브랜치 DTO 키 매핑 유연성 확보
       return {
         'featuredIpos': data['featuredIpos'] ?? data['featured'] ?? [],
         'trendingIpos': data['trendingIpos'] ?? data['trending'] ?? [],
-        'attractivenessItems': data['attractivenessItems'] ?? data['attractive'] ?? [],
+        'attractiveness': data['attractiveness'] ?? {
+          'items': data['attractivenessItems'] ?? data['attractive'] ?? [],
+        },
+        'attractivenessItems': data['attractivenessItems'] ?? data['attractive'] ?? (data['attractiveness']?['items']) ?? [],
       };
     } catch (e) {
       rethrow;
@@ -67,17 +69,25 @@ class IpoService {
   // ── 캘린더 데이터 조회 ────────────────────────────────
   /// 특정 월의 공모주 일정(청약, 환불, 상장 등)을 가져옵니다.
   /// [month] : 'YYYY-MM' 형식 (예: '2026-04')
-  Future<List<dynamic>> getCalendarData(String month) async {
+  Future<Map<String, dynamic>> getCalendarData(String month) async {
     try {
+      final parts = month.split('-');
+      final int year = int.parse(parts[0]);
+      final int monthInt = int.parse(parts[1]);
+
       final response = await _dio.get(
         ApiEndpoints.calendar,
-        queryParameters: {'month': month},
+        queryParameters: {
+          'year': year,
+          'month': monthInt,
+        },
       );
-      return response.data as List<dynamic>;
+      return response.data as Map<String, dynamic>;
     } catch (e) {
       rethrow;
     }
   }
+
 
   // ── 관심종목 토글 ─────────────────────────────────────
   /// 관심종목 등록/삭제 처리를 합니다.

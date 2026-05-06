@@ -23,6 +23,10 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
   String? _currentSessionId;
   bool _isTyping = false;
 
+  // 백엔드에서 가져온 추천 질문
+  List<String> _recommendedQuestions = [];
+  bool _isLoadingRecommendations = true;
+
   @override
   void initState() {
     super.initState();
@@ -32,7 +36,31 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
     );
     _animationController.forward();
     
-    // 초기 세션 목록 로드 (Drawer에서 처리하거나 여기서 미리 할 수 있음)
+    // 세션 생성 → 추천 질문 로드
+    _initializeSession();
+  }
+
+  Future<void> _initializeSession() async {
+    try {
+      final sessionData = await _chatService.createSession(title: '새 대화');
+      if (!mounted) return;
+      setState(() {
+        _currentSessionId = sessionData['sessionId'].toString();
+        
+        // 추천 질문 파싱
+        final List<dynamic> rawQuestions = sessionData['recommendedQuestions'] ?? [];
+        _recommendedQuestions = rawQuestions
+            .map((q) => (q as Map<String, dynamic>)['questionText'] as String? ?? '')
+            .where((text) => text.isNotEmpty)
+            .toList();
+        
+        _isLoadingRecommendations = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoadingRecommendations = false);
+      // 세션 생성 실패 시 기본 추천 질문 (fallback)
+    }
   }
 
   @override
@@ -173,6 +201,8 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
           });
           _animationController.reset();
           _animationController.forward();
+          // 새 대화 시작 → 새 세션 + 추천 질문 재로드
+          _initializeSession();
         },
         onLoadChat: (chatId) {
           _loadSessionMessages(chatId);
@@ -219,6 +249,16 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
   }
 
   Widget _buildWelcomeScreen(String userName, String userTypeStr) {
+    // 백엔드에서 가져온 추천 질문 사용
+    final List<String> questions = _recommendedQuestions.isNotEmpty
+        ? _recommendedQuestions
+        : [
+            // Fallback: 로딩 실패 시 기본 추천 질문
+            '이번 주 청약 가능한 공모주 알려줘',
+            '내 \'$userTypeStr\' 성향에 맞는 종목 추천해줘',
+            '공모주 투자 시 주의할 점이 뭐야?',
+          ];
+
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Column(
@@ -237,11 +277,27 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
             0.1, 0.4,
           ),
           const SizedBox(height: 16),
-          _buildStaggeredItem(_buildQuestionCard('이번 주 청약 가능한 공모주 알려줘'), 0.2, 0.5),
-          const SizedBox(height: 12),
-          _buildStaggeredItem(_buildQuestionCard('내 \'$userTypeStr\' 성향에 맞는 종목 추천해줘'), 0.3, 0.6),
-          const SizedBox(height: 12),
-          _buildStaggeredItem(_buildQuestionCard('공모주 투자 시 주의할 점이 뭐야?'), 0.4, 0.7),
+          if (_isLoadingRecommendations)
+            _buildStaggeredItem(
+              const Center(child: Padding(
+                padding: EdgeInsets.all(20),
+                child: CircularProgressIndicator(color: AppColors.primary),
+              )),
+              0.2, 0.5,
+            )
+          else
+            ...List.generate(questions.length, (index) {
+              final double start = 0.2 + (index * 0.1);
+              final double end = start + 0.3;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildStaggeredItem(
+                  _buildQuestionCard(questions[index]),
+                  start.clamp(0.0, 0.7),
+                  end.clamp(0.3, 1.0),
+                ),
+              );
+            }),
         ],
       ),
     );

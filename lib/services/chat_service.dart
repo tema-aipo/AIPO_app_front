@@ -27,11 +27,37 @@ class ChatService {
   Future<List<dynamic>> getSessions() async {
     try {
       final response = await _dio.get(ApiEndpoints.chatSessions);
-      return response.data as List<dynamic>;
+      final data = response.data as Map<String, dynamic>;
+      
+      final pinned = data['pinnedSessions'] as List<dynamic>? ?? [];
+      final recent = data['recentSessions'] as List<dynamic>? ?? [];
+      
+      final List<dynamic> merged = [];
+      
+      Map<String, dynamic> translate(dynamic item) {
+        final map = item as Map<String, dynamic>;
+        return {
+          'sessionId': map['sessionId'],
+          'title': map['title'],
+          'pinned': map['pinned'],
+          'updatedAt': map['lastMessageAt'] ?? '',
+          'lastMessagePreview': map['lastMessagePreview'],
+        };
+      }
+      
+      for (var p in pinned) {
+        merged.add(translate(p));
+      }
+      for (var r in recent) {
+        merged.add(translate(r));
+      }
+      
+      return merged;
     } catch (e) {
       rethrow;
     }
   }
+
 
   // ── 메시지 전송 ────────────────────────────────────────
   /// 특정 세션에 메시지를 보내고 AI의 답변을 받습니다.
@@ -65,15 +91,17 @@ class ChatService {
   /// 특정 메시지에 대한 피드백(좋아요/싫어요)을 보냅니다.
   Future<void> submitFeedback({
     required String messageId,
-    required bool isPositive,
-    String? reason,
+    required String feedbackType, // 'LIKE' or 'DISLIKE'
+    String? reasonCode,           // 'INACCURATE_INFO', 'TOO_COMPLEX', 'IRRELEVANT_ANSWER'
+    String? reasonDetail,
   }) async {
     try {
       await _dio.post(
         ApiEndpoints.messageFeedback(messageId),
         data: {
-          'isPositive': isPositive,
-          if (reason != null) 'reason': reason,
+          'feedbackType': feedbackType,
+          if (reasonCode != null) 'reasonCode': reasonCode,
+          if (reasonDetail != null) 'reasonDetail': reasonDetail,
         },
       );
     } catch (e) {
@@ -81,3 +109,4 @@ class ChatService {
     }
   }
 }
+

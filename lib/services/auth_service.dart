@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import '../network/dio_client.dart';
 import '../network/api_endpoints.dart';
 import '../models/auth_manager.dart';
+import '../network/auth_interceptor.dart';
 
 /// 인증 관련 API 호출을 담당하는 서비스 클래스
 class AuthService {
@@ -90,6 +91,33 @@ class AuthService {
     }
   }
 
+  // ── 자동 로그인 (세션 복구) ──────────────────────────
+  /// 앱 시작 시 저장된 토큰이 있으면 유저 정보를 불러와 세션을 복구합니다.
+  Future<bool> restoreSession() async {
+    final token = await AuthInterceptor.getAccessToken();
+    if (token == null) return false;
+
+    try {
+      final response = await _dio.get(ApiEndpoints.myProfile);
+      final userData = response.data;
+      
+      final userId = (userData['userId'] ?? userData['id'] ?? 0).toString();
+      final userName = userData['userName'] ?? userData['name'] ?? '사용자';
+      final investmentType = userData['investmentType'] ?? '안정형';
+      
+      AuthManager.instance.currentUser.value = UserModel(
+        id: userId,
+        name: userName,
+        email: userData['email'] ?? '',
+        investmentType: investmentType.startsWith('#') ? investmentType : '#$investmentType',
+      );
+      return true;
+    } catch (_) {
+      await AuthManager.instance.logout();
+      return false;
+    }
+  }
+
   // ── 로그아웃 ──────────────────────────────────────────
   Future<void> logout() async {
     try {
@@ -100,3 +128,4 @@ class AuthService {
     await AuthManager.instance.logout();
   }
 }
+

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:dio/dio.dart';
 import '../theme/app_colors.dart';
 import 'ipo_detail_screen.dart';
 import 'login_screen.dart';
 import 'signup_step2_screen.dart';
+import 'profile_screen.dart';
 import '../models/auth_manager.dart';
 import '../services/user_service.dart';
 import '../services/ipo_service.dart';
@@ -36,9 +38,16 @@ class _MyPageScreenState extends State<MyPageScreen> {
   Future<void> _fetchData() async {
     setState(() => _isLoading = true);
     try {
-      final favs = await _userService.getFavorites();
+      final results = await Future.wait([
+        _userService.getFavorites(),
+        _userService.getNotificationSettings(),
+      ]);
+      final favs = results[0] as List<dynamic>;
+      final notiSettings = results[1] as Map<String, dynamic>;
       setState(() {
         _favorites = favs;
+        _isSubscriptionAlarmOn = notiSettings['subscriptionScheduleNotificationEnabled'] ?? true;
+        _isListingAlarmOn = notiSettings['listingDateNotificationEnabled'] ?? false;
         _isLoading = false;
       });
     } catch (e) {
@@ -152,6 +161,203 @@ class _MyPageScreenState extends State<MyPageScreen> {
     );
   }
 
+  void _showWithdrawBottomSheet() {
+    final TextEditingController passwordController = TextEditingController();
+    bool isWithdrawing = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                decoration: const BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 24),
+                        decoration: BoxDecoration(
+                          color: AppColors.borderGray,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded, color: AppColors.primaryRed, size: 28),
+                        SizedBox(width: 12),
+                        Text(
+                          '회원 탈퇴 안내',
+                          style: TextStyle(
+                            color: AppColors.textDark,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.bgGray.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
+                      ),
+                      child: const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '탈퇴 시 유의사항',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            '• 탈퇴 시 현재 계정 정보 및 관심 공모주 목록이 모두 삭제됩니다.\n• AI 챗봇 대화 기록은 복구할 수 없도록 영구 폐기됩니다.\n• 해당 아이디로 재가입하는 것은 불가능할 수 있습니다.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textGray,
+                              height: 1.6,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      '안전한 탈퇴를 위해 비밀번호를 입력해 주세요.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: passwordController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        hintText: '비밀번호 입력',
+                        hintStyle: const TextStyle(color: AppColors.textLightGray, fontSize: 14),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        filled: true,
+                        fillColor: AppColors.bgGray.withOpacity(0.3),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.borderGray.withOpacity(0.5)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: AppColors.primaryRed),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: isWithdrawing
+                            ? null
+                            : () async {
+                                final password = passwordController.text.trim();
+                                if (password.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('비밀번호를 입력해 주세요.')),
+                                  );
+                                  return;
+                                }
+
+                                setModalState(() => isWithdrawing = true);
+                                try {
+                                  await _userService.withdraw(password);
+                                  await _authService.logout();
+                                  
+                                  if (!mounted) return;
+                                  Navigator.pop(context); // Close bottom sheet
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                                    (route) => false,
+                                  );
+                                  
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('회원 탈퇴가 완료되었습니다. 이용해 주셔서 감사합니다.')),
+                                  );
+                                } catch (e) {
+                                  setModalState(() => isWithdrawing = false);
+                                  String errMsg = '회원 탈퇴에 실패했습니다. 비밀번호를 확인해 주세요.';
+                                  if (e is DioException) {
+                                    if (e.response?.statusCode == 401) {
+                                      errMsg = '비밀번호가 일치하지 않습니다.';
+                                    } else if (e.response?.data != null && e.response?.data is Map) {
+                                      errMsg = e.response?.data['message'] ?? errMsg;
+                                    }
+                                  }
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(errMsg)),
+                                  );
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryRed,
+                          foregroundColor: AppColors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: isWithdrawing
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                '회원 탈퇴하기',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -227,15 +433,21 @@ class _MyPageScreenState extends State<MyPageScreen> {
       child: Column(
         children: [
           _buildSettingsCard([
-            Row(children: [
-              const CircleAvatar(backgroundColor: AppColors.primary, child: Icon(Icons.person, color: Colors.white)),
-              const SizedBox(width: 16),
-              Text('${user?.name ?? '사용자'} 님', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(width: 12),
-              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: AppColors.bgLightBlue, borderRadius: BorderRadius.circular(8)), child: Text(user?.investmentType ?? '#안정형', style: const TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold))),
-              const Spacer(),
-              const Icon(Icons.chevron_right, color: AppColors.textGray),
-            ]),
+            InkWell(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileScreen()),
+              ),
+              child: Row(children: [
+                const CircleAvatar(backgroundColor: AppColors.primary, child: Icon(Icons.person, color: Colors.white)),
+                const SizedBox(width: 16),
+                Text('${user?.name ?? '사용자'} 님', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 12),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: AppColors.bgLightBlue, borderRadius: BorderRadius.circular(8)), child: Text(user?.investmentType ?? '#안정형', style: const TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold))),
+                const Spacer(),
+                const Icon(Icons.chevron_right, color: AppColors.textGray),
+              ]),
+            ),
           ]),
           const SizedBox(height: 24),
           _buildSettingsCard([
@@ -247,7 +459,10 @@ class _MyPageScreenState extends State<MyPageScreen> {
           _buildSettingsCard([
             InkWell(onTap: _showLogoutDialog, child: _buildSettingsRow(Icons.logout, '로그아웃')),
             const Divider(height: 32),
-            _buildSettingsRow(Icons.person_remove_outlined, '회원탈퇴', textColor: AppColors.primaryRed),
+            InkWell(
+              onTap: _showWithdrawBottomSheet,
+              child: _buildSettingsRow(Icons.person_remove_outlined, '회원탈퇴', textColor: AppColors.primaryRed),
+            ),
           ]),
         ],
       ),

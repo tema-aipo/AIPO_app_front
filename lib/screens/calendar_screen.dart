@@ -98,34 +98,97 @@ class _CalendarScreenState extends State<CalendarScreen> {
       
       final Map<String, List<CalendarEvent>> newMap = {};
       
-      for (var item in rawData) {
-        final String date = item['date']; // YYYY-MM-DD
-        final typeStr = item['eventType']; // SUBSCRIPTION, REFUND, etc.
+      // 1. 달력 칸 정보(calendarCells) 파싱
+      final List<dynamic> cells = rawData['calendarCells'] ?? [];
+      for (var cell in cells) {
+        final String date = cell['date']; // YYYY-MM-DD
+        final List<dynamic> items = cell['items'] ?? [];
         
-        EventType? type;
-        switch (typeStr) {
-          case 'DEMAND_FORECAST': type = EventType.demandForecast; break;
-          case 'SUBSCRIPTION': type = EventType.subscription; break;
-          case 'REFUND': type = EventType.refund; break;
-          case 'LISTING': type = EventType.listing; break;
+        for (var item in items) {
+          final String typeStr = item['scheduleType'] ?? '';
+          
+          EventType? type;
+          if (typeStr.contains('DEMAND_FORECAST')) {
+            type = EventType.demandForecast;
+          } else if (typeStr.contains('SUBSCRIPTION')) {
+            type = EventType.subscription;
+          } else if (typeStr == 'REFUND') {
+            type = EventType.refund;
+          } else if (typeStr == 'LISTING') {
+            type = EventType.listing;
+          }
+          
+          if (type != null) {
+            final event = CalendarEvent(
+              ipoId: item['ipoId'].toString(),
+              name: item['companyName'] ?? '',
+              type: type,
+              score: null,
+              leadManager: null,
+            );
+            
+            if (newMap[date] == null) newMap[date] = [];
+            newMap[date]!.add(event);
+          }
         }
-        
-        if (type != null) {
-          final event = CalendarEvent(
-            ipoId: item['ipoId'].toString(),
-            name: item['ipoName'],
-            type: type,
-            score: item['attractionScore'],
-            leadManager: item['leadManager'],
+      }
+      
+      // 2. 선택된 날짜 상세 섹션(selectedDateSection) 파싱하여 덮어쓰기 (상세 점수 및 주관사 정보 추가)
+      final selectedDateSection = rawData['selectedDateSection'];
+      DateTime? resolvedSelectedDate;
+      if (selectedDateSection != null) {
+        final String? selDateStr = selectedDateSection['selectedDate']; // YYYY-MM-DD
+        if (selDateStr != null) {
+          final dateParts = selDateStr.split('-');
+          resolvedSelectedDate = DateTime(
+            int.parse(dateParts[0]),
+            int.parse(dateParts[1]),
+            int.parse(dateParts[2]),
           );
           
-          if (newMap[date] == null) newMap[date] = [];
-          newMap[date]!.add(event);
+          final List<dynamic> companies = selectedDateSection['companies'] ?? [];
+          final List<CalendarEvent> selectedEvents = [];
+          
+          for (var comp in companies) {
+            final String typeStr = comp['scheduleType'] ?? '';
+            EventType? type;
+            if (typeStr.contains('DEMAND_FORECAST')) {
+              type = EventType.demandForecast;
+            } else if (typeStr.contains('SUBSCRIPTION')) {
+              type = EventType.subscription;
+            } else if (typeStr == 'REFUND') {
+              type = EventType.refund;
+            } else if (typeStr == 'LISTING') {
+              type = EventType.listing;
+            }
+            
+            if (type != null) {
+              final double? scoreDouble = comp['attractionScore'] != null 
+                  ? (comp['attractionScore'] as num).toDouble() 
+                  : null;
+              final int? scoreInt = scoreDouble?.toInt();
+
+              selectedEvents.add(CalendarEvent(
+                ipoId: comp['ipoId'].toString(),
+                name: comp['companyName'] ?? '',
+                type: type,
+                score: scoreInt,
+                leadManager: comp['securitiesCompanyName'],
+              ));
+            }
+          }
+          
+          if (selectedEvents.isNotEmpty) {
+            newMap[selDateStr] = selectedEvents;
+          }
         }
       }
 
       setState(() {
         _eventsMap = newMap;
+        if (resolvedSelectedDate != null) {
+          _selectedDate = resolvedSelectedDate;
+        }
         _isLoading = false;
       });
     } catch (e) {
@@ -137,6 +200,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       }
     }
   }
+
 
   String _getDateKey(DateTime date) {
     return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";

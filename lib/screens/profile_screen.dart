@@ -1,9 +1,95 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import '../theme/app_colors.dart';
 import '../models/auth_manager.dart';
+import '../services/user_service.dart';
+import '../services/auth_service.dart';
+import 'login_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final UserService _userService = UserService();
+  final AuthService _authService = AuthService();
+  
+  final TextEditingController _currentPasswordController = TextEditingController();
+  final TextEditingController _newPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
+  
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleChangePassword() async {
+    final currentPassword = _currentPasswordController.text.trim();
+    final newPassword = _newPasswordController.text.trim();
+    final confirmPassword = _confirmPasswordController.text.trim();
+
+    if (currentPassword.isEmpty || newPassword.isEmpty || confirmPassword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('모든 비밀번호 필드를 입력해 주세요.')),
+      );
+      return;
+    }
+
+    if (newPassword != confirmPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('새 비밀번호와 비밀번호 확인이 일치하지 않습니다.')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _userService.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+
+      await _authService.logout();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('비밀번호가 안전하게 변경되었습니다. 보안을 위해 다시 로그인해 주세요.')),
+      );
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      setState(() => _isLoading = false);
+      String errMsg = '비밀번호 변경에 실패했습니다.';
+      if (e is DioException) {
+        if (e.response?.statusCode == 400 || e.response?.statusCode == 401) {
+          if (e.response?.data != null && e.response?.data is Map) {
+            final code = e.response?.data['code'];
+            if (code == 'INVALID_PASSWORD') {
+              errMsg = '현재 비밀번호가 올바르지 않습니다.';
+            } else {
+              errMsg = e.response?.data['message'] ?? errMsg;
+            }
+          }
+        }
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errMsg)),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,11 +138,11 @@ class ProfileScreen extends StatelessWidget {
             // Password Section
             const Text('비밀번호 변경', style: TextStyle(color: AppColors.textDark, fontSize: 18, fontWeight: FontWeight.w800)),
             const SizedBox(height: 16),
-            _buildTextField('현재 비밀번호'),
+            _buildTextField('현재 비밀번호', _currentPasswordController),
             const SizedBox(height: 16),
-            _buildTextField('새 비밀번호 (영문, 숫자, 특수문자 조합)'),
+            _buildTextField('새 비밀번호 (영문, 숫자, 특수문자 조합)', _newPasswordController),
             const SizedBox(height: 16),
-            _buildTextField('새 비밀번호 확인'),
+            _buildTextField('새 비밀번호 확인', _confirmPasswordController),
             const SizedBox(height: 48),
 
             // Save Button
@@ -64,20 +150,25 @@ class ProfileScreen extends StatelessWidget {
               width: double.infinity,
               height: 56,
               child: ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('비밀번호가 변경되었습니다.')),
-                  );
-                  Navigator.pop(context);
-                },
+                onPressed: _isLoading ? null : _handleChangePassword,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
+                  disabledBackgroundColor: AppColors.primary.withOpacity(0.6),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
                   elevation: 0,
                 ),
-                child: const Text('변경 완료', style: TextStyle(color: AppColors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2.5,
+                        ),
+                      )
+                    : const Text('변경 완료', style: TextStyle(color: AppColors.white, fontSize: 18, fontWeight: FontWeight.w800)),
               ),
             ),
           ],
@@ -101,8 +192,9 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTextField(String hint) {
+  Widget _buildTextField(String hint, TextEditingController controller) {
     return TextField(
+      controller: controller,
       obscureText: true,
       decoration: InputDecoration(
         hintText: hint,

@@ -68,6 +68,14 @@ class AuthInterceptor extends Interceptor {
     }
 
     if (err.response?.statusCode == 401) {
+      // 3. 비밀번호 불일치 등 비즈니스적 401 에러인 경우 토큰 재발급을 실행하지 않음
+      if (err.response?.data != null && err.response?.data is Map) {
+        final data = err.response!.data as Map;
+        if (data['code'] == 'INVALID_PASSWORD') {
+          return handler.next(err);
+        }
+      }
+
       final prefs = await SharedPreferences.getInstance();
       final refreshToken = prefs.getString(_refreshTokenKey);
       if (refreshToken == null) {

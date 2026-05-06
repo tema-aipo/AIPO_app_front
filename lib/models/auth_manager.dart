@@ -46,20 +46,6 @@ class AuthManager {
     currentUser.value = user;
   }
 
-  /// 임시 목업 로그인 (백엔드 연동 전까지 사용)
-  bool loginMock(String id, String password) {
-    if (id == 'guest' && password == '1234') {
-      currentUser.value = UserModel(
-        id: 'guest',
-        name: 'AIPO',
-        email: 'guest@aipo.com',
-        investmentType: '#안정형',
-      );
-      return true;
-    }
-    return false;
-  }
-
   void updateInvestmentType(String newType) {
     if (currentUser.value != null) {
       currentUser.value = UserModel(

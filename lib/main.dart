@@ -4,6 +4,7 @@ import 'screens/onboarding_screen.dart';
 import 'screens/main_screen.dart';
 import 'models/auth_manager.dart';
 import 'network/dio_client.dart';
+import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -11,6 +12,10 @@ void main() async {
   await dotenv.load(fileName: '.env');
   // Dio HTTP 클라이언트 초기화
   DioClient.instance.initialize();
+  
+  // 앱 시작 시 자동 로그인(세션 복구) 시도
+  await AuthService().restoreSession();
+  
   runApp(const MyApp());
 }
 

@@ -28,6 +28,17 @@ class UserService {
     }
   }
 
+  // ── 알림 설정 조회 ────────────────────────────────────
+  /// 사용자의 현재 알림 설정을 가져옵니다.
+  Future<Map<String, dynamic>> getNotificationSettings() async {
+    try {
+      final response = await _dio.get('/users/me/notifications');
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   // ── 알림 설정 업데이트 ──────────────────────────────
   /// 사용자의 알림 설정을 변경합니다.
   Future<void> updateNotificationSettings({
@@ -35,7 +46,7 @@ class UserService {
     required bool listingAlarm,
   }) async {
     try {
-      await _dio.put(
+      await _dio.patch(
         '/users/me/notifications',
         data: {
           'subscriptionAlarm': subscriptionAlarm,
@@ -51,12 +62,33 @@ class UserService {
   /// 현재 계정을 삭제합니다.
   Future<void> withdraw(String password) async {
     try {
-      await _dio.delete(
-        '/auth/withdraw',
+      await _dio.post(
+        '/users/me/withdraw',
         data: {'password': password},
       );
     } catch (e) {
       rethrow;
     }
   }
+
+  // ── 비밀번호 변경 ─────────────────────────────────────
+  /// 현재 비밀번호를 확인하고 새 비밀번호로 변경합니다.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      await _dio.patch(
+        '/users/me/password',
+        data: {
+          'currentPassword': currentPassword,
+          'newPassword': newPassword,
+        },
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
 }
+
+

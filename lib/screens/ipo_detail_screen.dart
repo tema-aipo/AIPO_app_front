@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import '../theme/app_colors.dart';
 import '../services/ipo_service.dart';
 
@@ -49,13 +50,31 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
   }
 
   Future<void> _toggleFavorite() async {
+    final bool newState = !_isFavorite;
+    // 즉각적 UI 반응 (Optimistic Update)
+    setState(() => _isFavorite = newState);
     try {
-      await _ipoService.toggleFavorite(widget.ipoId, !_isFavorite);
-      setState(() {
-        _isFavorite = !_isFavorite;
-      });
-    } catch (e) {
+      await _ipoService.toggleFavorite(widget.ipoId, newState);
+    } on DioException catch (e) {
+      // 409: 이미 등록된 관심종목 → 상태 유지 (이미 true)
+      if (e.response?.statusCode == 409) {
+        setState(() => _isFavorite = true);
+        return;
+      }
+      // 그 외 에러 → 원래 상태로 복구
+      setState(() => _isFavorite = !newState);
       if (mounted) {
+        final statusCode = e.response?.statusCode ?? 'unknown';
+        final message = e.response?.data?['message'] ?? '관심 종목 변경에 실패했습니다.';
+        debugPrint('[FavoriteToggle] Error $statusCode for ipoId=${widget.ipoId}: $message');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$message ($statusCode)')),
+        );
+      }
+    } catch (e) {
+      setState(() => _isFavorite = !newState);
+      if (mounted) {
+        debugPrint('[FavoriteToggle] Unexpected error: $e');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('관심 종목 변경에 실패했습니다.')),
         );

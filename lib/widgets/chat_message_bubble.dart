@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_colors.dart';
 import '../models/chat_message.dart';
+import '../services/chat_service.dart';
+
 
 class ChatMessageBubble extends StatefulWidget {
   final ChatMessage message;
@@ -159,10 +161,23 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                     _buildIconButton(
                       icon: _feedbackState == 1 ? Icons.thumb_up : Icons.thumb_up_outlined,
                       isActive: _feedbackState == 1,
-                      onTap: () {
+                      onTap: () async {
+                        final previousState = _feedbackState;
                         setState(() {
                           _feedbackState = _feedbackState == 1 ? 0 : 1;
                         });
+                        if (_feedbackState == 1) {
+                          try {
+                            await ChatService().submitFeedback(
+                              messageId: widget.message.id,
+                              feedbackType: 'LIKE',
+                            );
+                          } catch (_) {
+                            setState(() {
+                              _feedbackState = previousState;
+                            });
+                          }
+                        }
                       },
                     ),
                     const SizedBox(width: 8),
@@ -221,11 +236,36 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
-                            onPressed: () {
-                              if(_selectedReason == null) return;
+                            onPressed: () async {
+                              if (_selectedReason == null) return;
+                              final int reasonIdx = _selectedReason!;
+                              final reasonCodes = [
+                                'INACCURATE_INFO',
+                                'TOO_COMPLEX',
+                                'IRRELEVANT_ANSWER'
+                              ];
+                              final reasonDetails = [
+                                '공모가, 일정 등 정보가 부정확해요',
+                                '내용이 너무 복잡하고 어려워요',
+                                '질문의 의도와 다른 엉뚱한 답변이에요'
+                              ];
+                              
                               setState(() {
                                 _feedbackSubmitted = true;
                               });
+
+                              try {
+                                await ChatService().submitFeedback(
+                                  messageId: widget.message.id,
+                                  feedbackType: 'DISLIKE',
+                                  reasonCode: reasonCodes[reasonIdx],
+                                  reasonDetail: reasonDetails[reasonIdx],
+                                );
+                              } catch (_) {
+                                // Ignore or handle silently
+                              }
+
+                              if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: const Text('소중한 의견이 제출되었습니다.'),

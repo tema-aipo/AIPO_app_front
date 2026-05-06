@@ -3,12 +3,7 @@ import 'signup_step3_screen.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/signup_stepper.dart';
-
-class SurveyQuestion {
-  final String text;
-  final List<String> options;
-  SurveyQuestion({required this.text, required this.options});
-}
+import '../services/investment_profile_service.dart';
 
 class SignupStep2Screen extends StatefulWidget {
   final bool isRetest;
@@ -20,35 +15,42 @@ class SignupStep2Screen extends StatefulWidget {
 }
 
 class _SignupStep2ScreenState extends State<SignupStep2Screen> {
-  int _currentIndex = 0;
-  final List<int?> _selectedAnswers = List.filled(6, null);
+  final InvestmentProfileService _profileService = InvestmentProfileService();
 
-  final List<SurveyQuestion> _questions = [
-    SurveyQuestion(
-      text: 'Q1. 공모주 청약 참여 경험이 얼마나 있으신가요?',
-      options: ['전혀 없음', '1~2회 참여', '3~5회 참여', '6회 이상 정기적 참여'],
-    ),
-    SurveyQuestion(
-      text: 'Q2. 상장 첫날 -20% 하락 시 어떻게 대응하시나요?',
-      options: ['즉시 매도', '상황 지켜봄', '추가 매수 고려', '장기 보유 전환'],
-    ),
-    SurveyQuestion(
-      text: 'Q3. 투자설명서 검토 수준은 어느 정도이신가요?',
-      options: ['거의 보지 않음', '요약본만 확인', '주요 재무·공모 구조 확인', '산업 전망·경쟁사 분석까지'],
-    ),
-    SurveyQuestion(
-      text: 'Q4. IPO 중 고위험·고수익 기대 종목(바이오·테크 등)에 적극 청약한다.',
-      options: ['전혀 동의하지 않음', '동의하지 않음', '동의함', '매우 동의함'],
-    ),
-    SurveyQuestion(
-      text: 'Q5. IPO 상장 후 단기 변동성을 감수하며 고수익 추구한다.',
-      options: ['전혀 동의하지 않음', '동의하지 않음', '동의함', '매우 동의함'],
-    ),
-    SurveyQuestion(
-      text: 'Q6. 포트폴리오의 20% 이상을 IPO 청약에 배분할 수 있다.',
-      options: ['전혀 동의하지 않음', '동의하지 않음', '동의함', '매우 동의함'],
-    ),
-  ];
+  int _currentIndex = 0;
+  List<int?> _selectedAnswers = [];
+
+  // 백엔드에서 가져온 데이터
+  bool _isLoadingQuestions = true;
+  int? _version;
+  List<Map<String, dynamic>> _questions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchQuestions();
+  }
+
+  Future<void> _fetchQuestions() async {
+    try {
+      final data = await _profileService.getQuestions();
+      final int version = data['version'] ?? 1;
+      final List<dynamic> rawQuestions = data['questions'] ?? [];
+
+      setState(() {
+        _version = version;
+        _questions = rawQuestions.cast<Map<String, dynamic>>();
+        _selectedAnswers = List.filled(_questions.length, null);
+        _isLoadingQuestions = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoadingQuestions = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('질문을 불러오지 못했습니다: $e')),
+      );
+    }
+  }
 
   void _handleNext() {
     if (_currentIndex < _questions.length - 1) {
@@ -56,11 +58,34 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
         _currentIndex++;
       });
     } else {
+      // 모든 질문에 대한 답변을 수집하여 Step3으로 전달
+      final List<Map<String, dynamic>> answers = [];
+      for (int i = 0; i < _questions.length; i++) {
+        final question = _questions[i];
+        final selectedIdx = _selectedAnswers[i];
+        if (selectedIdx != null) {
+          final List<dynamic> options = question['options'] ?? [];
+          if (selectedIdx < options.length) {
+            final option = options[selectedIdx] as Map<String, dynamic>;
+            answers.add({
+              'questionId': question['questionId'],
+              'optionId': option['optionId'],
+            });
+          }
+        }
+      }
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-            builder: (_) =>
-                SignupStep3Screen(isSkipped: false, isRetest: widget.isRetest, signupData: widget.signupData)),
+          builder: (_) => SignupStep3Screen(
+            isSkipped: false,
+            isRetest: widget.isRetest,
+            signupData: widget.signupData,
+            version: _version,
+            answers: answers,
+          ),
+        ),
       );
     }
   }
@@ -93,7 +118,12 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
-                      builder: (_) => SignupStep3Screen(isSkipped: true, signupData: widget.signupData)),
+                    builder: (_) => SignupStep3Screen(
+                      isSkipped: true,
+                      signupData: widget.signupData,
+                      version: _version,
+                    ),
+                  ),
                 );
               },
               child: const Text('스킵하기',
@@ -116,7 +146,56 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
 
   @override
   Widget build(BuildContext context) {
+    // 로딩 중이면 스피너 표시
+    if (_isLoadingQuestions) {
+      return Scaffold(
+        backgroundColor: AppColors.white,
+        appBar: AppBar(
+          backgroundColor: AppColors.white,
+          elevation: 0,
+          centerTitle: true,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(widget.isRetest ? '투자 성향 재검사' : '회원가입',
+              style: AppTextStyles.appBarTitle),
+        ),
+        body: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: AppColors.primary),
+              SizedBox(height: 16),
+              Text('질문을 불러오는 중입니다...', style: TextStyle(color: AppColors.textGray)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // 질문이 없으면 에러 표시
+    if (_questions.isEmpty) {
+      return Scaffold(
+        backgroundColor: AppColors.white,
+        appBar: AppBar(
+          backgroundColor: AppColors.white,
+          elevation: 0,
+          centerTitle: true,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(widget.isRetest ? '투자 성향 재검사' : '회원가입',
+              style: AppTextStyles.appBarTitle),
+        ),
+        body: const Center(child: Text('질문을 불러올 수 없습니다.')),
+      );
+    }
+
     final currentQ = _questions[_currentIndex];
+    final String questionText = currentQ['questionText'] ?? '';
+    final List<dynamic> options = currentQ['options'] ?? [];
     final bool hasSelection = _selectedAnswers[_currentIndex] != null;
 
     return Scaffold(
@@ -172,23 +251,25 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
 
               const SizedBox(height: 32),
 
-              // Question Text
+              // Question Text (백엔드 데이터 사용)
               Text(
-                currentQ.text,
+                'Q${_currentIndex + 1}. $questionText',
                 style: AppTextStyles.h3,
               ),
 
               const SizedBox(height: 32),
 
-              // Options List
+              // Options List (백엔드 데이터 사용)
               Expanded(
                 child: ListView.separated(
-                  itemCount: currentQ.options.length,
+                  itemCount: options.length,
                   separatorBuilder: (context, index) =>
                       const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final bool isSelected =
                         _selectedAnswers[_currentIndex] == index;
+                    final option = options[index] as Map<String, dynamic>;
+                    final String optionText = option['optionText'] ?? '';
 
                     return GestureDetector(
                       onTap: () {
@@ -209,7 +290,7 @@ class _SignupStep2ScreenState extends State<SignupStep2Screen> {
                               : Border.all(color: Colors.transparent, width: 1),
                         ),
                         child: Text(
-                          currentQ.options[index],
+                          optionText,
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight:

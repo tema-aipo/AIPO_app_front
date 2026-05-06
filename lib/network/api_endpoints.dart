@@ -31,4 +31,8 @@ class ApiEndpoints {
 
   // ── Investment Profile ────────────────────────────────
   static const String investmentProfile = '/investment-profile';
+  static const String investmentProfileQuestions = '/investment-profile/questions';
+  static const String investmentProfileResults = '/investment-profile/results';
+  static const String investmentProfileSkip = '/investment-profile/skip';
+  static const String investmentProfileRetest = '/users/me/investment-profile/retest';
 }
