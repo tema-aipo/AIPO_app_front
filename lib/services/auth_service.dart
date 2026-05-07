@@ -63,6 +63,7 @@ class AuthService {
       // 유저 데이터 추출 (중첩 구조 대응)
       final userData = data['userDto'] ?? data;
       final userId = (userData['userId'] ?? userData['id'] ?? 0).toString();
+      final responseLoginId = userData['loginId'] as String? ?? loginId;
       final userName = userData['userName'] ?? userData['name'] ?? '사용자';
       final investmentType = userData['investmentType'] ?? '안정형';
 
@@ -71,7 +72,7 @@ class AuthService {
         accessToken: accessToken,
         refreshToken: refreshToken,
         user: UserModel(
-          id: userId,
+          id: responseLoginId.isNotEmpty ? responseLoginId : userId,
           name: userName,
           email: userData['email'] ?? '',
           investmentType: investmentType.startsWith('#') ? investmentType : '#$investmentType',
@@ -102,11 +103,12 @@ class AuthService {
       final userData = response.data;
       
       final userId = (userData['userId'] ?? userData['id'] ?? 0).toString();
+      final loginId = userData['loginId'] as String? ?? '';
       final userName = userData['userName'] ?? userData['name'] ?? '사용자';
       final investmentType = userData['investmentType'] ?? '안정형';
       
       AuthManager.instance.currentUser.value = UserModel(
-        id: userId,
+        id: loginId.isNotEmpty ? loginId : userId,
         name: userName,
         email: userData['email'] ?? '',
         investmentType: investmentType.startsWith('#') ? investmentType : '#$investmentType',

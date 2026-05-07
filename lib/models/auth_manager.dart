@@ -17,9 +17,11 @@ class UserModel {
   /// 백엔드 JSON 응답 → UserModel 변환
   factory UserModel.fromJson(Map<String, dynamic> json) {
     final rawType = json['investmentType'] as String? ?? '안정형';
+    final loginId = json['loginId'] as String? ?? '';
+    final fallbackId = (json['id'] ?? json['userId'] ?? '').toString();
     return UserModel(
-      id: json['id']?.toString() ?? '',
-      name: json['name'] as String? ?? '',
+      id: loginId.isNotEmpty ? loginId : fallbackId,
+      name: json['name'] as String? ?? json['userName'] as String? ?? '',
       email: json['email'] as String? ?? '',
       investmentType: rawType.startsWith('#') ? rawType : '#$rawType',
     );
