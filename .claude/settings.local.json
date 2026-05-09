@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/baeki/AIPO_BE/src/test/java/com/aipo/backend/domain/user/controller/**)",
+      "Read(//c/Users/baeki/AIPO_BE/src/main/java/com/aipo/backend/domain/ipo/dto/**)"
+    ]
+  }
+}

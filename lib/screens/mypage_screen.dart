@@ -15,10 +15,10 @@ class MyPageScreen extends StatefulWidget {
   const MyPageScreen({super.key});
 
   @override
-  State<MyPageScreen> createState() => _MyPageScreenState();
+  State<MyPageScreen> createState() => MyPageScreenState();
 }
 
-class _MyPageScreenState extends State<MyPageScreen> {
+class MyPageScreenState extends State<MyPageScreen> {
   final UserService _userService = UserService();
   final IpoService _ipoService = IpoService();
   final AuthService _authService = AuthService();
@@ -28,6 +28,32 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
   bool _isSubscriptionAlarmOn = true;
   bool _isListingAlarmOn = false;
+  final Map<String, bool> _activeNotifications = {};
+
+  Map<String, Color> _getBadgeColors(String rawType) {
+    final cleanType = rawType.startsWith('#') ? rawType : '#$rawType';
+    if (cleanType == '#안정형') {
+      return {
+        'bg': AppColors.bgLightBlue,
+        'text': AppColors.primary,
+      };
+    } else if (cleanType == '#공격형') {
+      return {
+        'bg': const Color(0xFFFFEAEA),
+        'text': const Color(0xFFD32F2F),
+      };
+    } else if (cleanType == '#중립형') {
+      return {
+        'bg': const Color(0xFFE2F6EA),
+        'text': const Color(0xFF107C41),
+      };
+    } else {
+      return {
+        'bg': const Color(0xFFF3F3F3),
+        'text': AppColors.textGray,
+      };
+    }
+  }
 
   @override
   void initState() {
@@ -35,8 +61,14 @@ class _MyPageScreenState extends State<MyPageScreen> {
     _fetchData();
   }
 
-  Future<void> _fetchData() async {
-    setState(() => _isLoading = true);
+  void refresh() {
+    _fetchData(showLoading: false);
+  }
+
+  Future<void> _fetchData({bool showLoading = true}) async {
+    if (showLoading) {
+      setState(() => _isLoading = true);
+    }
     try {
       final results = await Future.wait([
         _userService.getFavorites(),
@@ -44,23 +76,73 @@ class _MyPageScreenState extends State<MyPageScreen> {
       ]);
       final favs = results[0] as List<dynamic>;
       final notiSettings = results[1] as Map<String, dynamic>;
-      setState(() {
-        _favorites = favs;
-        _isSubscriptionAlarmOn = notiSettings['subscriptionScheduleNotificationEnabled'] ?? true;
-        _isListingAlarmOn = notiSettings['listingDateNotificationEnabled'] ?? false;
-        _isLoading = false;
-      });
+        setState(() {
+          _favorites = favs;
+          for (var item in favs) {
+            final id = item['ipoId']?.toString() ?? '';
+            if (id.isNotEmpty && !_activeNotifications.containsKey(id)) {
+              _activeNotifications[id] = true;
+            }
+          }
+          _isSubscriptionAlarmOn = notiSettings['subscriptionScheduleNotificationEnabled'] ?? true;
+          _isListingAlarmOn = notiSettings['listingDateNotificationEnabled'] ?? false;
+          _isLoading = false;
+        });
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   Future<void> _toggleFavorite(String ipoId, bool currentStatus) async {
+    final originalFavorites = List<dynamic>.from(_favorites);
+    
+    final stockItem = originalFavorites.firstWhere(
+      (item) => (item['ipoId']?.toString() ?? '') == ipoId,
+      orElse: () => null,
+    );
+    final String companyName = stockItem != null 
+        ? (stockItem['companyName'] ?? stockItem['name'] ?? '해당 공모주')
+        : '해당 공모주';
+
+    if (currentStatus && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$companyName가 관심 공모주에서 해제되었습니다.'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+
+    // 즉각적인 로컬 삭제 (Optimistic Update)
+    setState(() {
+      _favorites.removeWhere((item) => (item['ipoId']?.toString() ?? '') == ipoId);
+    });
+
     try {
       await _ipoService.toggleFavorite(ipoId, !currentStatus);
-      _fetchData();
-    } catch (e) {
+      
+      // 백그라운드 데이터 갱신 (로딩 스피너 없는 조용한 갱신)
+      final results = await Future.wait([
+        _userService.getFavorites(),
+        _userService.getNotificationSettings(),
+      ]);
+      final favs = results[0] as List<dynamic>;
+      final notiSettings = results[1] as Map<String, dynamic>;
       if (mounted) {
+        setState(() {
+          _favorites = favs;
+          _isSubscriptionAlarmOn = notiSettings['subscriptionScheduleNotificationEnabled'] ?? true;
+          _isListingAlarmOn = notiSettings['listingDateNotificationEnabled'] ?? false;
+        });
+      }
+    } catch (e) {
+      // API 실패 시 복구
+      if (mounted) {
+        setState(() {
+          _favorites = originalFavorites;
+        });
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('관심 종목 변경에 실패했습니다.')));
       }
     }
@@ -97,7 +179,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                       subscriptionAlarm: _isSubscriptionAlarmOn, 
                       listingAlarm: _isListingAlarmOn
                     ).catchError((_) {
-                      if (mounted) {
+                      if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('알림 설정 저장 실패')));
                       }
                     });
@@ -110,7 +192,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
                       subscriptionAlarm: _isSubscriptionAlarmOn, 
                       listingAlarm: _isListingAlarmOn
                     ).catchError((_) {
-                      if (mounted) {
+                      if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('알림 설정 저장 실패')));
                       }
                     });
@@ -151,7 +233,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
           TextButton(
             onPressed: () async {
               await _authService.logout();
-              if (!mounted) return;
+              if (!context.mounted) return;
               Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
             },
             child: const Text('확인', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
@@ -295,30 +377,64 @@ class _MyPageScreenState extends State<MyPageScreen> {
                                   await _userService.withdraw(password);
                                   await _authService.logout();
                                   
-                                  if (!mounted) return;
-                                  Navigator.pop(context); // Close bottom sheet
-                                  Navigator.pushAndRemoveUntil(
-                                    context,
+                                  if (!context.mounted) return;
+                                  final navigator = Navigator.of(context);
+                                  final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+                                  navigator.pop(); // Close bottom sheet
+                                  navigator.pushAndRemoveUntil(
                                     MaterialPageRoute(builder: (_) => const LoginScreen()),
                                     (route) => false,
                                   );
                                   
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  scaffoldMessenger.showSnackBar(
                                     const SnackBar(content: Text('회원 탈퇴가 완료되었습니다. 이용해 주셔서 감사합니다.')),
                                   );
                                 } catch (e) {
                                   setModalState(() => isWithdrawing = false);
                                   String errMsg = '회원 탈퇴에 실패했습니다. 비밀번호를 확인해 주세요.';
+                                  bool isPasswordError = false;
+
                                   if (e is DioException) {
                                     if (e.response?.statusCode == 401) {
                                       errMsg = '비밀번호가 일치하지 않습니다.';
+                                      isPasswordError = true;
                                     } else if (e.response?.data != null && e.response?.data is Map) {
                                       errMsg = e.response?.data['message'] ?? errMsg;
                                     }
                                   }
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(errMsg)),
-                                  );
+
+                                  if (isPasswordError) {
+                                    if (!context.mounted) return;
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                        title: const Row(
+                                          children: [
+                                            Icon(Icons.warning_amber_rounded, color: AppColors.primaryRed, size: 28),
+                                            SizedBox(width: 8),
+                                            Text('비밀번호 불일치', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                                          ],
+                                        ),
+                                        content: const Text(
+                                          '입력하신 비밀번호가 일치하지 않습니다. 다시 확인 후 입력해 주세요.',
+                                          style: TextStyle(fontSize: 15, height: 1.4, color: AppColors.textDark),
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context),
+                                            child: const Text('확인', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  } else {
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(errMsg)),
+                                    );
+                                  }
                                 }
                               },
                         style: ElevatedButton.styleFrom(
@@ -391,38 +507,176 @@ class _MyPageScreenState extends State<MyPageScreen> {
       itemBuilder: (context, index) {
         final item = _favorites[index];
         final String ipoId = item['ipoId']?.toString() ?? '';
-        final String ipoName = item['name'] ?? '정보 없음';
+        final String ipoName = item['companyName'] ?? item['name'] ?? '정보 없음';
         final String leadManager = item['leadManager'] ?? '-';
+        final String? status = item['status'];
+        final String dateRange = item['dateRange'] ?? '-';
+        final int score = item['attractionScore'] ?? item['score'] ?? item['recentGrowthScore'] ?? 0;
 
-        return GestureDetector(
+        final bool isNotificationOn = _activeNotifications[ipoId] ?? true;
+
+        return _buildIpoCard(
+          score: score,
+          ipoName: ipoName,
+          leadManager: leadManager,
+          dateLabel: dateRange,
+          status: status,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: Icon(
+                  isNotificationOn ? Icons.notifications_active : Icons.notifications_none, 
+                  color: isNotificationOn ? const Color(0xFFF2C94C) : AppColors.textGray.withOpacity(0.5), 
+                  size: 22
+                ),
+                onPressed: () {
+                  setState(() {
+                    _activeNotifications[ipoId] = !isNotificationOn;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(!isNotificationOn
+                          ? '$ipoName의 청약 및 상장 알림이 활성화되었습니다.'
+                          : '$ipoName의 청약 및 상장 알림이 비활성화되었습니다.'),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                },
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                splashRadius: 20,
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.favorite, color: AppColors.primaryRed, size: 22),
+                onPressed: () => _toggleFavorite(ipoId, true),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                splashRadius: 20,
+              ),
+            ],
+          ),
           onTap: () => Navigator.push(
             context, 
             MaterialPageRoute(builder: (_) => IpoDetailScreen(ipoId: ipoId, ipoName: ipoName))
-          ),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.white, borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
-              boxShadow: [BoxShadow(color: AppColors.black.withOpacity(0.015), blurRadius: 10, offset: const Offset(0, 4))],
-            ),
-            child: Row(
-              children: [
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(ipoName, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 6),
-                  Text(leadManager, style: const TextStyle(color: AppColors.textGray, fontSize: 13)),
-                ])),
-                IconButton(
-                  icon: const Icon(Icons.favorite, color: AppColors.primaryRed),
-                  onPressed: () => _toggleFavorite(ipoId, true),
-                ),
-              ],
-            ),
-          ),
+          ).then((_) => _fetchData()),
         );
       },
+    );
+  }
+
+  Widget _buildStatusBadge(String status) {
+    Color bg;
+    Color text;
+    switch (status) {
+      case '수요예측':
+        bg = const Color(0xFFFFEAEA); text = const Color(0xFFD32F2F);
+        break;
+      case '상장':
+        bg = const Color(0xFFE2F6EA); text = const Color(0xFF107C41);
+        break;
+      case '청약종료':
+        bg = const Color(0xFFF3F3F3); text = AppColors.textGray;
+        break;
+      case '환불':
+        bg = const Color(0xFFFFF4E8); text = const Color(0xFFFF5E00);
+        break;
+      default: // 청약
+        bg = AppColors.bgLightBlue; text = AppColors.primary;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+      child: Text(status, style: TextStyle(color: text, fontSize: 11, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _buildIpoCard({
+    required int score,
+    required String ipoName,
+    required String leadManager,
+    required String dateLabel,
+    String? status,
+    required Widget trailing,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
+          boxShadow: [BoxShadow(
+            color: AppColors.black.withOpacity(0.015),
+            blurRadius: 10, offset: const Offset(0, 4),
+          )],
+        ),
+        child: Row(
+          children: [
+            // 좌측: 점수 + 상태뱃지
+            SizedBox(
+              width: 72,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '• $score점',
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  if (status != null) ...[
+                    const SizedBox(height: 6),
+                    _buildStatusBadge(status),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            // 중앙: 종목명 + 주관사 + 날짜
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    ipoName,
+                    style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold,
+                      color: AppColors.textDark,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    leadManager,
+                    style: const TextStyle(
+                      color: AppColors.textGray, fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    dateLabel,
+                    style: const TextStyle(
+                      color: AppColors.textGray, fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // 우측: 액션 영역
+            trailing,
+          ],
+        ),
+      ),
     );
   }
 
@@ -443,7 +697,25 @@ class _MyPageScreenState extends State<MyPageScreen> {
                 const SizedBox(width: 16),
                 Text('${user?.name ?? '사용자'} 님', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(width: 12),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: AppColors.bgLightBlue, borderRadius: BorderRadius.circular(8)), child: Text(user?.investmentType ?? '#안정형', style: const TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold))),
+                (() {
+                  final rawType = user?.investmentType ?? '#분석대기중';
+                  final colors = _getBadgeColors(rawType);
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: colors['bg'],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      rawType,
+                      style: TextStyle(
+                        color: colors['text'],
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  );
+                })(),
                 const Spacer(),
                 const Icon(Icons.chevron_right, color: AppColors.textGray),
               ]),

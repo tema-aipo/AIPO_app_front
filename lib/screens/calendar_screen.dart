@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import 'ipo_detail_screen.dart';
 import '../services/ipo_service.dart';
+import '../services/user_service.dart';
 
 class CalendarEvent {
   final String ipoId;
@@ -40,9 +41,9 @@ extension EventTypeExtension on EventType {
 
   Color get textColor {
     switch (this) {
-      case EventType.demandForecast: return const Color(0xFFFF2E82);
+      case EventType.demandForecast: return const Color(0xFFD32F2F);
       case EventType.subscription: return AppColors.primary;
-      case EventType.listing: return const Color(0xFF00C875);
+      case EventType.listing: return const Color(0xFF107C41);
       case EventType.refund: return const Color(0xFFFF5E00);
       case EventType.favorite: return const Color(0xFF9E00FF);
     }
@@ -50,9 +51,9 @@ extension EventTypeExtension on EventType {
 
   Color get bgColor {
     switch (this) {
-      case EventType.demandForecast: return const Color(0xFFFFF0F5);
+      case EventType.demandForecast: return const Color(0xFFFFEAEA);
       case EventType.subscription: return AppColors.bgLightBlue;
-      case EventType.listing: return const Color(0xFFEFFFF6);
+      case EventType.listing: return const Color(0xFFE2F6EA);
       case EventType.refund: return const Color(0xFFFFF4E8);
       case EventType.favorite: return const Color(0xFFF7F0FF);
     }
@@ -69,17 +70,19 @@ class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
 
   @override
-  State<CalendarScreen> createState() => _CalendarScreenState();
+  State<CalendarScreen> createState() => CalendarScreenState();
 }
 
-class _CalendarScreenState extends State<CalendarScreen> {
+class CalendarScreenState extends State<CalendarScreen> {
   final IpoService _ipoService = IpoService();
+  final UserService _userService = UserService();
   late DateTime _currentDate;
-  late DateTime _selectedDate;
+  DateTime? _selectedDate;
   bool _isLoading = true;
 
   final Set<EventType> _activeFilters = EventType.values.toSet();
   Map<String, List<CalendarEvent>> _eventsMap = {};
+  final Set<String> _favoriteIpoIds = {};
 
   @override
   void initState() {
@@ -90,11 +93,39 @@ class _CalendarScreenState extends State<CalendarScreen> {
     _fetchCalendarData();
   }
 
-  Future<void> _fetchCalendarData() async {
-    setState(() => _isLoading = true);
+  void refresh() {
+    _fetchCalendarData(showLoading: false);
+  }
+
+  Future<void> _fetchCalendarData({DateTime? targetSelectedDate, bool showLoading = true}) async {
+    if (showLoading) {
+      setState(() => _isLoading = true);
+    }
     try {
+      // 관심종목 조회
+      try {
+        final favs = await _userService.getFavorites();
+        _favoriteIpoIds.clear();
+        for (var f in favs) {
+          final id = f['ipoId']?.toString();
+          if (id != null) {
+            _favoriteIpoIds.add(id);
+          }
+        }
+      } catch (e) {
+        debugPrint('[Calendar] Failed to fetch favorites: $e');
+      }
+
       final monthStr = "${_currentDate.year}-${_currentDate.month.toString().padLeft(2, '0')}";
-      final rawData = await _ipoService.getCalendarData(monthStr);
+      
+      String? selectedDateParam;
+      if (targetSelectedDate != null) {
+        selectedDateParam = "${targetSelectedDate.year}-${targetSelectedDate.month.toString().padLeft(2, '0')}-${targetSelectedDate.day.toString().padLeft(2, '0')}";
+      } else if (_selectedDate != null && _selectedDate!.year == _currentDate.year && _selectedDate!.month == _currentDate.month) {
+        selectedDateParam = "${_selectedDate!.year}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}";
+      }
+
+      final rawData = await _ipoService.getCalendarData(monthStr, selectedDate: selectedDateParam);
       
       final Map<String, List<CalendarEvent>> newMap = {};
       
@@ -119,10 +150,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
           }
           
           if (type != null) {
+            final String ipoId = item['ipoId'].toString();
             final event = CalendarEvent(
-              ipoId: item['ipoId'].toString(),
+              ipoId: ipoId,
               name: item['companyName'] ?? '',
-              type: type,
+              type: _favoriteIpoIds.contains(ipoId) ? EventType.favorite : type,
               score: null,
               leadManager: null,
             );
@@ -167,11 +199,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   ? (comp['attractionScore'] as num).toDouble() 
                   : null;
               final int? scoreInt = scoreDouble?.toInt();
+              final String ipoId = comp['ipoId'].toString();
 
               selectedEvents.add(CalendarEvent(
-                ipoId: comp['ipoId'].toString(),
+                ipoId: ipoId,
                 name: comp['companyName'] ?? '',
-                type: type,
+                type: _favoriteIpoIds.contains(ipoId) ? EventType.favorite : type,
                 score: scoreInt,
                 leadManager: comp['securitiesCompanyName'],
               ));
@@ -187,7 +220,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
       setState(() {
         _eventsMap = newMap;
         if (resolvedSelectedDate != null) {
-          _selectedDate = resolvedSelectedDate;
+          if (targetSelectedDate != null) {
+            _selectedDate = targetSelectedDate;
+          } else if (_selectedDate != null) {
+            _selectedDate = resolvedSelectedDate;
+          }
         }
         _isLoading = false;
       });
@@ -209,6 +246,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
   void _nextMonth() {
     setState(() {
       _currentDate = DateTime(_currentDate.year, _currentDate.month + 1, 1);
+      final today = DateTime.now();
+      if (_currentDate.year == today.year && _currentDate.month == today.month) {
+        _selectedDate = DateTime(today.year, today.month, today.day);
+      } else {
+        _selectedDate = null;
+      }
     });
     _fetchCalendarData();
   }
@@ -216,6 +259,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
   void _prevMonth() {
     setState(() {
       _currentDate = DateTime(_currentDate.year, _currentDate.month - 1, 1);
+      final today = DateTime.now();
+      if (_currentDate.year == today.year && _currentDate.month == today.month) {
+        _selectedDate = DateTime(today.year, today.month, today.day);
+      } else {
+        _selectedDate = null;
+      }
     });
     _fetchCalendarData();
   }
@@ -262,21 +311,30 @@ class _CalendarScreenState extends State<CalendarScreen> {
       ),
       body: _isLoading 
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-          : SingleChildScrollView(
-              child: Column(
-                children: [
-                  _buildLegend(),
-                  const SizedBox(height: 16),
-                  _buildDayHeaders(),
-                  const SizedBox(height: 16),
-                  _buildCalendarGrid(),
-                  const SizedBox(height: 24),
-                  const Divider(color: AppColors.borderGray, thickness: 0.5),
-                  const SizedBox(height: 24),
-                  _buildTaskList(),
-                  const SizedBox(height: 40),
-                ],
-              ),
+          : Column(
+              children: [
+                const SizedBox(height: 8),
+                _buildLegend(),
+                const SizedBox(height: 12),
+                const Divider(color: AppColors.borderGray, height: 1, thickness: 0.5),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 16),
+                        _buildDayHeaders(),
+                        const SizedBox(height: 16),
+                        _buildCalendarGrid(),
+                        const SizedBox(height: 24),
+                        const Divider(color: AppColors.borderGray, thickness: 0.5),
+                        const SizedBox(height: 24),
+                        _buildTaskList(),
+                        const SizedBox(height: 40),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
     );
   }
@@ -286,7 +344,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: EventType.values.where((t) => t != EventType.favorite).map((type) {
+        children: EventType.values.map((type) {
           final bool isActive = _activeFilters.contains(type);
           return GestureDetector(
             onTap: () => setState(() => isActive ? _activeFilters.remove(type) : _activeFilters.add(type)),
@@ -323,17 +381,64 @@ class _CalendarScreenState extends State<CalendarScreen> {
         itemBuilder: (context, index) {
           final cell = cells[index];
           final dateKey = _getDateKey(cell.date);
-          final isSelected = dateKey == _getDateKey(_selectedDate);
+          
+          final today = DateTime.now();
+          final isToday = cell.date.year == today.year &&
+              cell.date.month == today.month &&
+              cell.date.day == today.day;
+          final isSelected = _selectedDate != null && dateKey == _getDateKey(_selectedDate!);
+          
           final events = (_eventsMap[dateKey] ?? []).where((e) => _activeFilters.contains(e.type)).toList();
 
+          Widget dateWidget;
+          if (isToday) {
+            dateWidget = Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                '오늘',
+                style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+              ),
+            );
+          } else if (isSelected) {
+            dateWidget = Container(
+              width: 30, height: 30,
+              decoration: const BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  cell.date.day.toString(),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+              ),
+            );
+          } else {
+            dateWidget = Text(
+              cell.date.day.toString(),
+              style: TextStyle(
+                color: cell.isCurrentMonth
+                    ? AppColors.textDark
+                    : AppColors.textGray.withOpacity(0.3),
+                fontWeight: FontWeight.bold,
+              ),
+            );
+          }
+
           return GestureDetector(
-            onTap: () => setState(() => _selectedDate = cell.date),
+            onTap: () {
+              setState(() => _selectedDate = cell.date);
+              _fetchCalendarData(targetSelectedDate: cell.date, showLoading: false);
+            },
             child: Column(
               children: [
-                Container(
-                  width: 30, height: 30,
-                  decoration: BoxDecoration(color: isSelected ? AppColors.primary : Colors.transparent, shape: BoxShape.circle),
-                  child: Center(child: Text(cell.date.day.toString(), style: TextStyle(color: isSelected ? AppColors.white : (cell.isCurrentMonth ? AppColors.textDark : AppColors.textGray.withOpacity(0.3)), fontWeight: FontWeight.bold))),
+                SizedBox(
+                  height: 30,
+                  child: Center(child: dateWidget),
                 ),
                 const SizedBox(height: 4),
                 ...events.take(2).map((e) => Container(
@@ -351,7 +456,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   Widget _buildTaskList() {
-    final dateKey = _getDateKey(_selectedDate);
+    if (_selectedDate == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: Center(
+          child: Text(
+            '일정을 확인하려면 날짜를 선택해주세요.',
+            style: TextStyle(color: AppColors.textGray, fontSize: 14),
+          ),
+        ),
+      );
+    }
+
+    final dateKey = _getDateKey(_selectedDate!);
     final tasks = (_eventsMap[dateKey] ?? []).where((t) => _activeFilters.contains(t.type)).toList();
     
     return Padding(
@@ -359,26 +476,141 @@ class _CalendarScreenState extends State<CalendarScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('${_selectedDate.month}/${_selectedDate.day} 일정', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text('${_selectedDate!.month}/${_selectedDate!.day} 일정', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-          if (tasks.isEmpty) const Center(child: Text('일정이 없습니다.'))
-          else ...tasks.map((task) => GestureDetector(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => IpoDetailScreen(ipoId: task.ipoId, ipoName: task.name))),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.borderGray.withOpacity(0.5))),
-              child: Row(
+          if (tasks.isEmpty) 
+            const Center(child: Text('일정이 없습니다.'))
+          else 
+            ...tasks.map((task) => _buildIpoCard(
+              score: task.score ?? 0,
+              ipoName: task.name,
+              leadManager: task.leadManager ?? '-',
+              dateLabel: '${_selectedDate!.month.toString().padLeft(2, '0')}.${_selectedDate!.day.toString().padLeft(2, '0')}',
+              status: task.type.label,
+              trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.borderGray),
+              onTap: () => Navigator.push(
+                context, 
+                MaterialPageRoute(builder: (_) => IpoDetailScreen(ipoId: task.ipoId, ipoName: task.name))
+              ).then((_) => _fetchCalendarData(showLoading: false)),
+            )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(String status) {
+    Color bg;
+    Color text;
+    switch (status) {
+      case '수요예측':
+        bg = const Color(0xFFFFEAEA); text = const Color(0xFFD32F2F);
+        break;
+      case '상장':
+        bg = const Color(0xFFE2F6EA); text = const Color(0xFF107C41);
+        break;
+      case '청약종료':
+        bg = const Color(0xFFF3F3F3); text = AppColors.textGray;
+        break;
+      case '환불':
+        bg = const Color(0xFFFFF0E6); text = const Color(0xFFFF5E00);
+        break;
+      case '관심':
+        bg = const Color(0xFFF5E6FF); text = const Color(0xFF9E00FF);
+        break;
+      default: // 청약
+        bg = AppColors.bgLightBlue; text = AppColors.primary;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+      child: Text(status, style: TextStyle(color: text, fontSize: 11, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _buildIpoCard({
+    required int score,
+    required String ipoName,
+    required String leadManager,
+    required String dateLabel,
+    String? status,
+    required Widget trailing,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
+          boxShadow: [BoxShadow(
+            color: AppColors.black.withOpacity(0.015),
+            blurRadius: 10, offset: const Offset(0, 4),
+          )],
+        ),
+        child: Row(
+          children: [
+            // 좌측: 점수 + 상태뱃지
+            SizedBox(
+              width: 72,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('${task.score ?? '-'}점', style: const TextStyle(color: AppColors.primary, fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(width: 12),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(task.name, style: const TextStyle(fontWeight: FontWeight.bold)), Text(task.leadManager ?? '-', style: const TextStyle(color: AppColors.textGray, fontSize: 12))])),
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: task.type.bgColor, borderRadius: BorderRadius.circular(8)), child: Text(task.type.label, style: TextStyle(color: task.type.textColor, fontSize: 11, fontWeight: FontWeight.bold))),
+                  Text(
+                    '• $score점',
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  if (status != null) ...[
+                    const SizedBox(height: 6),
+                    _buildStatusBadge(status),
+                  ],
                 ],
               ),
             ),
-          )),
-        ],
+            const SizedBox(width: 12),
+            // 중앙: 종목명 + 주관사 + 날짜
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    ipoName,
+                    style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold,
+                      color: AppColors.textDark,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    leadManager,
+                    style: const TextStyle(
+                      color: AppColors.textGray, fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    dateLabel,
+                    style: const TextStyle(
+                      color: AppColors.textGray, fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // 우측: 액션 영역
+            trailing,
+          ],
+        ),
       ),
     );
   }

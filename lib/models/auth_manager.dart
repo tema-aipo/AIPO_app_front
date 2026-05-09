@@ -16,7 +16,7 @@ class UserModel {
 
   /// 백엔드 JSON 응답 → UserModel 변환
   factory UserModel.fromJson(Map<String, dynamic> json) {
-    final rawType = json['investmentType'] as String? ?? '안정형';
+    final rawType = json['investmentType'] as String? ?? '분석대기중';
     final loginId = json['loginId'] as String? ?? '';
     final fallbackId = (json['id'] ?? json['userId'] ?? '').toString();
     return UserModel(

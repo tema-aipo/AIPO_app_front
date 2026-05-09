@@ -3,6 +3,7 @@ import 'signup_step2_screen.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/signup_stepper.dart';
+import '../services/auth_service.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -12,6 +13,7 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
+  final AuthService _authService = AuthService();
   bool _obscurePassword = true;
   bool _obscurePasswordConfirm = true;
 
@@ -20,6 +22,10 @@ class _SignupScreenState extends State<SignupScreen> {
   final _idCtrl = TextEditingController();
   final _pwCtrl = TextEditingController();
   final _pwConfirmCtrl = TextEditingController();
+
+  bool _isCheckingId = false;
+  bool? _isIdAvailable;
+  String _lastCheckedId = '';
 
   @override
   void dispose() {
@@ -31,6 +37,32 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
+  Future<void> _checkIdAvailability() async {
+    final id = _idCtrl.text.trim();
+    if (id.isEmpty) {
+      _showError('아이디를 입력해 주세요.');
+      return;
+    }
+    
+    setState(() => _isCheckingId = true);
+    try {
+      final available = await _authService.checkLoginIdAvailability(id);
+      setState(() {
+        _isIdAvailable = available;
+        _lastCheckedId = id;
+        _isCheckingId = false;
+      });
+      if (available) {
+        _showSuccess('사용 가능한 아이디입니다.');
+      } else {
+        _showError('이미 사용 중이거나 사용할 수 없는 아이디입니다.');
+      }
+    } catch (e) {
+      setState(() => _isCheckingId = false);
+      _showError('중복 확인 실패: $e');
+    }
+  }
+
   bool _validate() {
     if (_nameCtrl.text.isEmpty) {
       _showError('이름을 입력해 주세요.');
@@ -38,6 +70,10 @@ class _SignupScreenState extends State<SignupScreen> {
     }
     if (_idCtrl.text.isEmpty) {
       _showError('아이디를 입력해 주세요.');
+      return false;
+    }
+    if (_isIdAvailable != true || _lastCheckedId != _idCtrl.text.trim()) {
+      _showError('아이디 중복확인을 진행해 주세요.');
       return false;
     }
     if (_pwCtrl.text.isEmpty) {
@@ -53,7 +89,19 @@ class _SignupScreenState extends State<SignupScreen> {
 
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg)),
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: AppColors.primaryRed,
+      ),
+    );
+  }
+
+  void _showSuccess(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: AppColors.primaryGreen,
+      ),
     );
   }
 
@@ -125,7 +173,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           SizedBox(
                             height: 56,
                             child: ElevatedButton(
-                              onPressed: () {},
+                              onPressed: _isCheckingId ? null : _checkIdAvailability,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.primary,
                                 foregroundColor: AppColors.white,
@@ -135,10 +183,19 @@ class _SignupScreenState extends State<SignupScreen> {
                                 elevation: 0,
                                 padding: const EdgeInsets.symmetric(horizontal: 24),
                               ),
-                              child: Text(
-                                '중복확인', 
-                                style: AppTextStyles.bodyBold.copyWith(color: AppColors.white)
-                              ),
+                              child: _isCheckingId
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        color: AppColors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Text(
+                                      '중복확인', 
+                                      style: AppTextStyles.bodyBold.copyWith(color: AppColors.white)
+                                    ),
                             ),
                           ),
                         ],

@@ -56,6 +56,31 @@ class _HomeScreenState extends State<HomeScreen> {
     _fetchHomeData();
   }
 
+  Map<String, Color> _getBadgeColors(String rawType) {
+    final cleanType = rawType.startsWith('#') ? rawType : '#$rawType';
+    if (cleanType == '#안정형') {
+      return {
+        'bg': AppColors.bgLightBlue,
+        'text': AppColors.primary,
+      };
+    } else if (cleanType == '#공격형') {
+      return {
+        'bg': const Color(0xFFFFEAEA),
+        'text': const Color(0xFFD32F2F),
+      };
+    } else if (cleanType == '#중립형') {
+      return {
+        'bg': const Color(0xFFE2F6EA),
+        'text': const Color(0xFF107C41),
+      };
+    } else {
+      return {
+        'bg': const Color(0xFFF3F3F3),
+        'text': AppColors.textGray,
+      };
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading && _homeData == null) {
@@ -75,7 +100,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 : null;
     final trendingIpos = _homeData?['trendingIpos'] ?? [];
     final attractivenessItems = _homeData?['attractiveness']?['items'] ?? [];
-    final userType = AuthManager.instance.user?.investmentType ?? '#안정형';
+    final userType = AuthManager.instance.user?.investmentType ?? '#분석대기중';
+    final badgeColors = _getBadgeColors(userType);
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -97,13 +123,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
-                          color: AppColors.bgLightBlue,
+                          color: badgeColors['bg'],
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Text(
                           userType,
-                          style: const TextStyle(
-                            color: AppColors.primary,
+                          style: TextStyle(
+                            color: badgeColors['text'],
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
                           ),
@@ -340,67 +366,23 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Text('해당 조건의 종목이 없습니다.', style: TextStyle(color: AppColors.textGray)),
                     ))
                   else
-                  Column(
+                                    Column(
                     children: attractivenessItems.map<Widget>((item) {
-                      return GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => IpoDetailScreen(
-                                ipoId: item['ipoId'].toString(),
-                                ipoName: item['name'],
-                              ),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                          decoration: BoxDecoration(
-                            color: AppColors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.black.withOpacity(0.015),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                            border: Border.all(color: AppColors.borderGray.withOpacity(0.3)),
+                      return _buildIpoCard(
+                        score: item['score'] ?? 0,
+                        ipoName: item['name'] ?? '-',
+                        leadManager: item['leadManager'] ?? '-',
+                        dateLabel: item['subscriptionStartDate'] != null
+                            ? '${_formatDate(item['subscriptionStartDate']?.toString())} 청약 시작'
+                            : '-',
+                        status: null,   // 홈에서는 상태 배지 미표시
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.borderGray),
+                        onTap: () => Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => IpoDetailScreen(
+                            ipoId: item['ipoId'].toString(),
+                            ipoName: item['name'],
                           ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.circle, size: 8, color: AppColors.primary),
-                              const SizedBox(width: 8),
-                              SizedBox(
-                                width: 55,
-                                child: Text(
-                                  '${item['score']}점',
-                                  style: const TextStyle(color: AppColors.primary, fontSize: 16, fontWeight: FontWeight.w800),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item['name'],
-                                      style: const TextStyle(color: AppColors.textDark, fontSize: 16, fontWeight: FontWeight.w700),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      '${item['subscriptionStartDate']} 청약 시작',
-                                      style: const TextStyle(color: AppColors.textGray, fontSize: 13, fontWeight: FontWeight.w500),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const Icon(Icons.arrow_forward, size: 18, color: AppColors.borderGray),
-                            ],
-                          ),
-                        ),
+                        )),
                       );
                     }).toList(),
                   ),
@@ -410,6 +392,124 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return '-';
+    final parts = dateStr.split('-');
+    if (parts.length < 3) return dateStr;
+    return '${parts[1]}.${parts[2]}';
+  }
+
+  Widget _buildStatusBadge(String status) {
+    Color bg;
+    Color text;
+    switch (status) {
+      case '수요예측':
+        bg = const Color(0xFFFFEAEA); text = const Color(0xFFD32F2F);
+        break;
+      case '상장':
+        bg = const Color(0xFFE2F6EA); text = const Color(0xFF107C41);
+        break;
+      case '청약종료':
+        bg = const Color(0xFFF3F3F3); text = AppColors.textGray;
+        break;
+      default: // 청약
+        bg = AppColors.bgLightBlue; text = AppColors.primary;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+      child: Text(status, style: TextStyle(color: text, fontSize: 11, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  Widget _buildIpoCard({
+    required int score,
+    required String ipoName,
+    required String leadManager,
+    required String dateLabel,
+    String? status,
+    required Widget trailing,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
+          boxShadow: [BoxShadow(
+            color: AppColors.black.withOpacity(0.015),
+            blurRadius: 10, offset: const Offset(0, 4),
+          )],
+        ),
+        child: Row(
+          children: [
+            // 좌측: 점수 + 상태뱃지
+            SizedBox(
+              width: 72,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '• $score점',
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  if (status != null) ...[
+                    const SizedBox(height: 6),
+                    _buildStatusBadge(status),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            // 중앙: 종목명 + 주관사 + 날짜
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    ipoName,
+                    style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold,
+                      color: AppColors.textDark,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    leadManager,
+                    style: const TextStyle(
+                      color: AppColors.textGray, fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    dateLabel,
+                    style: const TextStyle(
+                      color: AppColors.textGray, fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // 우측: 액션 영역
+            trailing,
+          ],
         ),
       ),
     );

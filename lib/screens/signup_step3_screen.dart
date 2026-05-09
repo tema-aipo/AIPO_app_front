@@ -28,7 +28,6 @@ class SignupStep3Screen extends StatefulWidget {
 }
 
 class _SignupStep3ScreenState extends State<SignupStep3Screen> {
-  bool _isLoading = false;
   bool _isSubmittingProfile = false;
   final AuthService _authService = AuthService();
   final InvestmentProfileService _profileService = InvestmentProfileService();
@@ -39,9 +38,76 @@ class _SignupStep3ScreenState extends State<SignupStep3Screen> {
   @override
   void initState() {
     super.initState();
-    // 재검사의 경우: 이미 로그인 상태이므로 바로 결과 제출
-    if (widget.isRetest && !widget.isSkipped && widget.answers != null) {
-      _submitRetestResult();
+    if (widget.isRetest) {
+      if (!widget.isSkipped && widget.answers != null) {
+        _submitRetestResult();
+      }
+    } else {
+      _registerAndSubmitProfile();
+    }
+  }
+
+  Future<void> _registerAndSubmitProfile() async {
+    final data = widget.signupData;
+    if (data == null) return;
+
+    setState(() => _isSubmittingProfile = true);
+    try {
+      // 1. 회원가입 API 호출 → userId 반환
+      final userId = await _authService.register(
+        loginId: data['loginId']!,
+        password: data['password']!,
+        userName: data['userName']!,
+        email: data['email'],
+      );
+
+      // 2. 자동 로그인
+      await _authService.login(
+        loginId: data['loginId']!,
+        password: data['password']!,
+      );
+
+      // 3. 투자성향 결과 제출 (스킵하지 않은 경우)
+      if (!widget.isSkipped && widget.version != null && widget.answers != null) {
+        final result = await _profileService.submitResult(
+          userId: userId,
+          version: widget.version!,
+          answers: widget.answers!,
+        );
+        final profileLabel = result['profileLabel'] ?? '';
+        if (profileLabel.isNotEmpty) {
+          AuthManager.instance.updateInvestmentType(profileLabel);
+        }
+        if (mounted) {
+          setState(() {
+            _profileResult = result;
+            _isSubmittingProfile = false;
+          });
+        }
+      } else if (widget.isSkipped && widget.version != null) {
+        // 스킵한 경우
+        await _profileService.skipProfile(
+          userId: userId,
+          version: widget.version!,
+        );
+        AuthManager.instance.updateInvestmentType('분석대기중');
+        if (mounted) {
+          setState(() {
+            _isSubmittingProfile = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() => _isSubmittingProfile = false);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmittingProfile = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('회원가입 처리 실패: $e')),
+        );
+      }
     }
   }
 
@@ -75,85 +141,12 @@ class _SignupStep3ScreenState extends State<SignupStep3Screen> {
   }
 
   Future<void> _handleComplete() async {
-    if (widget.isRetest) {
-      // 재검사 완료 → 메인으로 이동
-      if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const MainScreen()),
-        (route) => false,
-      );
-      return;
-    }
-
-    // 신규 회원가입: 회원가입 → 로그인 → 투자성향 제출
-    final data = widget.signupData;
-    if (data == null) return;
-
-    final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
-
-    setState(() => _isLoading = true);
-    try {
-      // 1. 회원가입 API 호출 → userId 반환
-      final userId = await _authService.register(
-        loginId: data['loginId']!,
-        password: data['password']!,
-        userName: data['userName']!,
-        email: data['email'],
-      );
-
-      // 2. 자동 로그인
-      await _authService.login(
-        loginId: data['loginId']!,
-        password: data['password']!,
-      );
-
-      // 3. 투자성향 결과 제출 (스킵하지 않은 경우)
-      if (!widget.isSkipped && widget.version != null && widget.answers != null) {
-        try {
-          final result = await _profileService.submitResult(
-            userId: userId,
-            version: widget.version!,
-            answers: widget.answers!,
-          );
-          // 결과를 UI에 반영
-          final profileLabel = result['profileLabel'] ?? '';
-          if (profileLabel.isNotEmpty) {
-            AuthManager.instance.updateInvestmentType(profileLabel);
-          }
-          if (mounted) {
-            setState(() => _profileResult = result);
-          }
-        } catch (e) {
-          // 투자성향 제출 실패해도 회원가입/로그인은 완료된 상태이므로 계속 진행
-          debugPrint('투자성향 제출 실패 (진행 계속): $e');
-        }
-      } else if (widget.isSkipped && widget.version != null) {
-        // 스킵한 경우
-        try {
-          await _profileService.skipProfile(
-            userId: userId,
-            version: widget.version!,
-          );
-        } catch (e) {
-          debugPrint('투자성향 스킵 처리 실패: $e');
-        }
-      }
-
-      if (!mounted) return;
-      navigator.pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const MainScreen()),
-        (route) => false,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      messenger.showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const MainScreen()),
+      (route) => false,
+    );
   }
 
   // 프로필 타입에 따른 UI 데이터 (백엔드 응답 기반)
@@ -224,15 +217,18 @@ class _SignupStep3ScreenState extends State<SignupStep3Screen> {
           elevation: 0,
           centerTitle: true,
           automaticallyImplyLeading: false,
-          title: const Text('검사 결과', style: AppTextStyles.appBarTitle),
+          title: Text(widget.isRetest ? '검사 결과' : '회원가입', style: AppTextStyles.appBarTitle),
         ),
-        body: const Center(
+        body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(color: AppColors.primary),
-              SizedBox(height: 16),
-              Text('투자 성향을 분석하고 있습니다...', style: TextStyle(color: AppColors.textGray)),
+              const CircularProgressIndicator(color: AppColors.primary),
+              const SizedBox(height: 16),
+              Text(
+                widget.isRetest ? '투자 성향을 분석하고 있습니다...' : '회원가입 결과를 처리하고 있습니다...', 
+                style: const TextStyle(color: AppColors.textGray)
+              ),
             ],
           ),
         ),
@@ -358,7 +354,7 @@ class _SignupStep3ScreenState extends State<SignupStep3Screen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _isLoading ? null : _handleComplete,
+                  onPressed: _handleComplete,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: AppColors.white,
@@ -367,16 +363,7 @@ class _SignupStep3ScreenState extends State<SignupStep3Screen> {
                     ),
                     elevation: 0,
                   ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2.5,
-                          ),
-                        )
-                      : Text(widget.isRetest ? '완료' : 'AIPO 시작하기', style: AppTextStyles.buttonText),
+                  child: Text(widget.isRetest ? '완료' : 'AIPO 시작하기', style: AppTextStyles.buttonText),
                 ),
               ),
               const SizedBox(height: 32),

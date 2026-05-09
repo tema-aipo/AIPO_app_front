@@ -69,7 +69,7 @@ class IpoService {
   // ── 캘린더 데이터 조회 ────────────────────────────────
   /// 특정 월의 공모주 일정(청약, 환불, 상장 등)을 가져옵니다.
   /// [month] : 'YYYY-MM' 형식 (예: '2026-04')
-  Future<Map<String, dynamic>> getCalendarData(String month) async {
+  Future<Map<String, dynamic>> getCalendarData(String month, {String? selectedDate}) async {
     try {
       final parts = month.split('-');
       final int year = int.parse(parts[0]);
@@ -80,6 +80,7 @@ class IpoService {
         queryParameters: {
           'year': year,
           'month': monthInt,
+          if (selectedDate != null) 'selectedDate': selectedDate,
         },
       );
       return response.data as Map<String, dynamic>;

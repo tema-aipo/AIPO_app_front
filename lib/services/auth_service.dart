@@ -8,6 +8,21 @@ import '../network/auth_interceptor.dart';
 class AuthService {
   final Dio _dio = DioClient.instance.dio;
 
+  // ── 로그인 아이디 중복 확인 ─────────────────────────
+  /// 사용 가능한 아이디인 경우 true, 중복되었거나 사용 불가능한 경우 false 반환
+  Future<bool> checkLoginIdAvailability(String loginId) async {
+    try {
+      final response = await _dio.get(
+        '/auth/login-id/availability',
+        queryParameters: {'loginId': loginId},
+      );
+      final data = response.data;
+      return data['available'] as bool? ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ── 회원가입 ──────────────────────────────────────────
   /// 성공 시 userId를 반환, 실패 시 에러 메시지 문자열을 throw
   Future<int> register({
@@ -65,7 +80,7 @@ class AuthService {
       final userId = (userData['userId'] ?? userData['id'] ?? 0).toString();
       final responseLoginId = userData['loginId'] as String? ?? loginId;
       final userName = userData['userName'] ?? userData['name'] ?? '사용자';
-      final investmentType = userData['investmentType'] ?? '안정형';
+      final investmentType = userData['investmentType'] ?? '분석대기중';
 
       // 토큰 저장 + 유저 세팅
       await AuthManager.instance.loginWithToken(
@@ -74,7 +89,7 @@ class AuthService {
         user: UserModel(
           id: responseLoginId.isNotEmpty ? responseLoginId : userId,
           name: userName,
-          email: userData['email'] ?? '',
+          email: userData['email'] as String? ?? data['email'] as String? ?? '',
           investmentType: investmentType.startsWith('#') ? investmentType : '#$investmentType',
         ),
       );
@@ -105,7 +120,7 @@ class AuthService {
       final userId = (userData['userId'] ?? userData['id'] ?? 0).toString();
       final loginId = userData['loginId'] as String? ?? '';
       final userName = userData['userName'] ?? userData['name'] ?? '사용자';
-      final investmentType = userData['investmentType'] ?? '안정형';
+      final investmentType = userData['investmentType'] ?? '분석대기중';
       
       AuthManager.instance.currentUser.value = UserModel(
         id: loginId.isNotEmpty ? loginId : userId,

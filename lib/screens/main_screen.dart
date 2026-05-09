@@ -15,17 +15,31 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  static const List<Widget> _widgetOptions = <Widget>[
-    HomeScreen(),
-    CalendarScreen(),
-    ChatbotScreen(),
-    MyPageScreen(),
-  ];
+  final GlobalKey<CalendarScreenState> _calendarKey = GlobalKey();
+  final GlobalKey<MyPageScreenState> _myPageKey = GlobalKey();
+
+  late final List<Widget> _widgetOptions;
+
+  @override
+  void initState() {
+    super.initState();
+    _widgetOptions = <Widget>[
+      const HomeScreen(),
+      CalendarScreen(key: _calendarKey),
+      const ChatbotScreen(),
+      MyPageScreen(key: _myPageKey),
+    ];
+  }
 
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
+    if (index == 1) {
+      _calendarKey.currentState?.refresh();
+    } else if (index == 3) {
+      _myPageKey.currentState?.refresh();
+    }
   }
 
   @override

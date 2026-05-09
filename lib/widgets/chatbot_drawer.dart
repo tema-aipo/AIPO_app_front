@@ -37,71 +37,304 @@ class _ChatbotDrawerState extends State<ChatbotDrawer> {
       });
     } catch (e) {
       setState(() => _isLoading = false);
-      // 에러 처리는 생략 (또는 로그 출력)
     }
+  }
+
+  Future<void> _togglePin(String sessionId, bool currentlyPinned) async {
+    try {
+      await _chatService.pinSession(sessionId, !currentlyPinned);
+      _fetchSessions();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('고정 상태 변경 실패: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteSession(String sessionId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('대화 삭제'),
+        content: const Text('이 대화 내역을 정말 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('삭제', style: TextStyle(color: AppColors.primaryRed)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await _chatService.deleteSession(sessionId);
+      _fetchSessions();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('대화 삭제 실패: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteAllRecentSessions() async {
+    final unpinnedSessions = _sessions.where((s) => s['pinned'] != true).toList();
+    if (unpinnedSessions.isEmpty) {
+      _showSnackBar('삭제할 최근 기록이 없습니다.');
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('기록 삭제'),
+        content: const Text('북마크(고정)된 대화를 제외한 모든 최근 기록을 정말 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('삭제', style: TextStyle(color: AppColors.primaryRed)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      // Delete unpinned sessions in parallel
+      await Future.wait(unpinnedSessions.map((s) => _chatService.deleteSession(s['sessionId'].toString())));
+      await _fetchSessions();
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnackBar('기록 삭제 실패: $e');
+    }
+  }
+
+  void _showSnackBar(String msg) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    }
+  }
+
+  Widget _buildSessionItem(dynamic session) {
+    final bool isPinned = session['pinned'] == true;
+    
+    Decoration? itemDecoration;
+    EdgeInsetsGeometry? itemMargin = const EdgeInsets.symmetric(horizontal: 16, vertical: 2);
+    EdgeInsetsGeometry itemPadding = const EdgeInsets.symmetric(horizontal: 16, vertical: 12);
+
+    return Container(
+      margin: itemMargin,
+      decoration: itemDecoration,
+      child: InkWell(
+        onTap: () {
+          Navigator.pop(context);
+          widget.onLoadChat(session['sessionId'].toString());
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: itemPadding,
+          child: Row(
+            children: [
+              Icon(
+                isPinned ? Icons.bookmark_rounded : Icons.chat_bubble_outline, 
+                size: 18, 
+                color: isPinned ? AppColors.primary : AppColors.textGray
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  session['title'] ?? '제목 없는 대화',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: isPinned ? FontWeight.w700 : FontWeight.w500,
+                    color: AppColors.textDark,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: Icon(
+                  isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                  size: 18,
+                  color: isPinned ? AppColors.primary : AppColors.textGray.withOpacity(0.5),
+                ),
+                onPressed: () => _togglePin(session['sessionId'].toString(), isPinned),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                splashRadius: 20,
+              ),
+              const SizedBox(width: 12),
+              IconButton(
+                icon: Icon(
+                  Icons.delete_outline,
+                  size: 18,
+                  color: isPinned ? AppColors.textGray.withOpacity(0.5) : AppColors.primaryRed,
+                ),
+                onPressed: () => _deleteSession(session['sessionId'].toString()),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                splashRadius: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final pinnedSessions = _sessions.where((s) => s['pinned'] == true).toList();
+    final recentSessions = _sessions.where((s) => s['pinned'] != true).toList();
+
     return Drawer(
       backgroundColor: AppColors.white,
       child: SafeArea(
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.all(20),
-              child: ElevatedButton.icon(
-                onPressed: () {
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: InkWell(
+                onTap: () {
                   Navigator.pop(context);
                   widget.onNewChat();
                 },
-                icon: const Icon(Icons.add, size: 20),
-                label: const Text('새로운 채팅', style: TextStyle(fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.white,
-                  minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 0,
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgLightBlue,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.add_comment_rounded, size: 20, color: AppColors.primary),
+                      SizedBox(width: 12),
+                      Text(
+                        '새 채팅 시작하기',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
+            
             const Divider(height: 1),
+            
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : _sessions.isEmpty
-                      ? const Center(child: Text('대화 기록이 없습니다.', style: TextStyle(color: AppColors.textGray)))
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          itemCount: _sessions.length,
-                          itemBuilder: (context, index) {
-                            final session = _sessions[index];
-                            return ListTile(
-                              leading: const Icon(Icons.chat_outlined, size: 20, color: AppColors.textGray),
-                              title: Text(
-                                session['title'] ?? '제목 없는 대화',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                            child: Text(
+                              '북마크',
+                              style: TextStyle(
+                                color: AppColors.textGray,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
                               ),
-                              subtitle: Text(
-                                session['updatedAt']?.split('T')[0] ?? '',
-                                style: const TextStyle(fontSize: 11, color: AppColors.textLightGray),
+                            ),
+                          ),
+                          if (pinnedSessions.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                              child: Text(
+                                '북마크된 대화가 없습니다.',
+                                style: TextStyle(
+                                  color: AppColors.textGray,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
-                              onTap: () {
-                                Navigator.pop(context);
-                                widget.onLoadChat(session['sessionId'].toString());
-                              },
-                            );
-                          },
-                        ),
+                            )
+                          else
+                            ...pinnedSessions.map((s) => _buildSessionItem(s)),
+                          const SizedBox(height: 16),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                            child: Text(
+                              '최근 기록',
+                              style: TextStyle(
+                                color: AppColors.textGray,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          if (recentSessions.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                              child: Text(
+                                '최근 대화 기록이 없습니다.',
+                                style: TextStyle(
+                                  color: AppColors.textGray,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            )
+                          else
+                            ...recentSessions.map((s) => _buildSessionItem(s)),
+                        ],
+                      ),
+                    ),
             ),
+            
             const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.info_outline, size: 20),
-              title: const Text('도움말', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-              onTap: () {},
+            
+            // 모든 기록 삭제
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: InkWell(
+                onTap: _deleteAllRecentSessions,
+                borderRadius: BorderRadius.circular(12),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      Icon(Icons.delete_outline, color: AppColors.primaryRed, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        '모든 기록 삭제',
+                        style: TextStyle(
+                          color: AppColors.primaryRed,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ],
         ),

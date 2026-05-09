@@ -22,6 +22,7 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
   bool _isLoading = true;
   Map<String, dynamic>? _detailData;
   bool _isFavorite = false;
+  bool _isEqualTab = true; // true: 균등배정, false: 비례배정
 
   @override
   void initState() {
@@ -35,8 +36,11 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
       final data = await _ipoService.getIpoDetail(widget.ipoId);
       setState(() {
         _detailData = data;
-        // 백엔드 매핑: summary 내부에 isFavorite 존재
         _isFavorite = data['summary']?['isFavorite'] ?? false;
+        
+        final defaultTab = data['subscriptionCompetition']?['defaultTab'];
+        _isEqualTab = defaultTab != 'PROPORTIONAL';
+        
         _isLoading = false;
       });
     } catch (e) {
@@ -51,22 +55,33 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
 
   Future<void> _toggleFavorite() async {
     final bool newState = !_isFavorite;
-    // 즉각적 UI 반응 (Optimistic Update)
     setState(() => _isFavorite = newState);
+    
+    // 알림 메시지 정의
+    final String companyName = _detailData?['summary']?['companyName'] ?? widget.ipoName;
+    final String snackMessage = newState 
+        ? '$companyName가 관심 공모주에 등록되었습니다.' 
+        : '$companyName가 관심 공모주에서 해제되었습니다.';
+
     try {
       await _ipoService.toggleFavorite(widget.ipoId, newState);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(snackMessage),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     } on DioException catch (e) {
-      // 409: 이미 등록된 관심종목 → 상태 유지 (이미 true)
       if (e.response?.statusCode == 409) {
         setState(() => _isFavorite = true);
         return;
       }
-      // 그 외 에러 → 원래 상태로 복구
       setState(() => _isFavorite = !newState);
       if (mounted) {
         final statusCode = e.response?.statusCode ?? 'unknown';
         final message = e.response?.data?['message'] ?? '관심 종목 변경에 실패했습니다.';
-        debugPrint('[FavoriteToggle] Error $statusCode for ipoId=${widget.ipoId}: $message');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('$message ($statusCode)')),
         );
@@ -74,12 +89,62 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
     } catch (e) {
       setState(() => _isFavorite = !newState);
       if (mounted) {
-        debugPrint('[FavoriteToggle] Unexpected error: $e');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('관심 종목 변경에 실패했습니다.')),
         );
       }
     }
+  }
+
+  // 헬퍼: 숫자 포맷팅 (예: 1250000 -> 1,250,000)
+  String _formatNumber(dynamic val) {
+    if (val == null) return '-';
+    final num? number = num.tryParse(val.toString());
+    if (number == null) return val.toString();
+    return number.toStringAsFixed(0).replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+  }
+
+  // 헬퍼: 시가총액 포맷팅 (원 -> 억원)
+  String _formatMarketCap(dynamic rawCap) {
+    if (rawCap == null) return '-';
+    final double? numVal = double.tryParse(rawCap.toString());
+    if (numVal == null) return rawCap.toString();
+
+    // 1억 이상인 경우 억 단위로 환산
+    if (numVal >= 100000000) {
+      final double inEck = numVal / 100000000;
+      return '${_formatNumber(inEck)}억원';
+    }
+    return '${_formatNumber(numVal)}억원';
+  }
+
+  // 헬퍼: 날짜 단축 포맷팅 (예: '2026-04-08' -> '04.08')
+  String _formatDateShort(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return '-';
+    final parts = dateStr.split('-');
+    if (parts.length >= 3) {
+      final month = int.parse(parts[1]).toString().padLeft(2, '0');
+      final day = int.parse(parts[2]).toString().padLeft(2, '0');
+      return '$month.$day';
+    }
+    return dateStr;
+  }
+
+  // 헬퍼: 날짜 기간 포맷팅 (예: '04.08 ~ 04.09')
+  String _formatDateRange(String? startStr, String? endStr) {
+    if ((startStr == null || startStr.isEmpty) && (endStr == null || endStr.isEmpty)) return '-';
+    if (startStr == null || startStr.isEmpty) return _formatDateShort(endStr);
+    if (endStr == null || endStr.isEmpty) return _formatDateShort(startStr);
+    return '${_formatDateShort(startStr)} ~ ${_formatDateShort(endStr)}';
+  }
+
+  // 헬퍼: 기관수요예측 데이터가 완전히 비었는지 감지
+  bool _isForecastEmpty(Map<String, dynamic> forecast) {
+    return forecast.isEmpty || 
+        (forecast['institutionalCompetitionRate'] == null &&
+         forecast['participatingInstitutionCount'] == null &&
+         forecast['lockupRate'] == null);
   }
 
   @override
@@ -96,8 +161,8 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
     final summary = data['summary'] ?? {};
     final attraction = data['attraction'] ?? {};
     final forecast = data['demandForecast'] ?? {};
+    final competition = data['subscriptionCompetition'] ?? {};
     final schedule = data['schedule'] ?? {};
-    final subscriptionPeriod = schedule['subscriptionPeriod'] ?? {};
     final depositInfos = data['depositInfos'] as List? ?? [];
     final offeringInfo = data['offeringInfo'] ?? {};
 
@@ -106,59 +171,116 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.arrow_back, color: AppColors.textDark), onPressed: () => Navigator.pop(context)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textDark), 
+          onPressed: () => Navigator.pop(context)
+        ),
         actions: [
           IconButton(
-            icon: Icon(_isFavorite ? Icons.favorite : Icons.favorite_border, color: _isFavorite ? AppColors.primaryRed : AppColors.textGray),
+            icon: Icon(
+              _isFavorite ? Icons.favorite : Icons.favorite_border, 
+              color: _isFavorite ? AppColors.primaryRed : AppColors.textGray
+            ),
             onPressed: _toggleFavorite,
           ),
           const SizedBox(width: 8),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Section
-            Text(summary['companyName'] ?? widget.ipoName, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.textDark)),
-            const SizedBox(height: 8),
-            Text(summary['oneLineDescription'] ?? '정보 수집 중입니다.', style: const TextStyle(fontSize: 15, color: AppColors.textGray, height: 1.4)),
+            // [섹션 1] 헤더 - 로고, 회사명, 설명, 요약 3열카드
+            Center(
+              child: Column(
+                children: [
+                  Container(
+                    width: 64, height: 64,
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary, 
+                      shape: BoxShape.circle
+                    ),
+                    child: const Icon(Icons.diamond_outlined, color: Colors.white, size: 32),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          summary['companyName'] ?? widget.ipoName, 
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.textDark),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (_getMarketTypeBadgeLabel(summary['marketType']) != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.bgLightBlue,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _getMarketTypeBadgeLabel(summary['marketType'])!,
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    summary['oneLineDescription'] ?? '정보 수집 중입니다.', 
+                    style: const TextStyle(fontSize: 14, color: AppColors.textGray, height: 1.4),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 24),
+            _buildQuickStatsRow(summary),
+            const SizedBox(height: 32),
 
-            // Score Card
+            // [섹션 2] AIPO 매력지수 (기존 UI 보존)
             _buildScoreCard(attraction),
             const SizedBox(height: 32),
 
-            // Demand Forecast
-            _buildSectionTitle('수요예측 결과'),
-            const SizedBox(height: 16),
-            _buildInfoCard([
-              _buildInfoRow('기관 경쟁률', '${forecast['institutionalCompetitionRate'] ?? '-'} : 1'),
-              _buildInfoRow('의무보유 확약', '${forecast['lockupRate'] ?? '-'} %'),
-              _buildInfoRow('공모가', '${summary['confirmedOfferPrice'] ?? '-'} 원'),
-            ]),
-            const SizedBox(height: 32),
+            // [섹션 3] 기관 수요예측 결과
+            if (!_isForecastEmpty(forecast)) ...[
+              _buildSectionTitle('기관 수요예측 결과'),
+              const SizedBox(height: 16),
+              _buildInfoCard([
+                _buildInfoRow('단순기관 경쟁률', forecast['institutionalCompetitionRate'] != null ? '${_formatNumber(forecast['institutionalCompetitionRate'])}:1' : '-'),
+                _buildInfoRow('수요예측 참여기관수', forecast['participatingInstitutionCount'] != null ? '${_formatNumber(forecast['participatingInstitutionCount'])}곳' : '-'),
+                _buildInfoRow('공모가 상단이상 경쟁률', forecast['aboveUpperPriceCompetitionRate'] != null ? '${_formatNumber(forecast['aboveUpperPriceCompetitionRate'])}:1' : '-'),
+                _buildInfoRow('공모가 상단이상 참여기관수', forecast['aboveUpperPriceInstitutionCount'] != null ? '${_formatNumber(forecast['aboveUpperPriceInstitutionCount'])}곳' : '-'),
+                _buildInfoRow('의무보유확약 경쟁률', forecast['lockupCompetitionRate'] != null ? '${_formatNumber(forecast['lockupCompetitionRate'])}:1' : '-'),
+                _buildInfoRow('의무보유확약 기관수', forecast['lockupInstitutionCount'] != null ? '${_formatNumber(forecast['lockupInstitutionCount'])}곳' : '-'),
+                _buildInfoRow('의무보유확약 비율', forecast['lockupRate'] != null ? '${forecast['lockupRate']}%' : '-'),
+              ]),
+              const SizedBox(height: 32),
+            ],
 
-            // Schedule
-            _buildSectionTitle('공모 일정'),
-            const SizedBox(height: 16),
-            _buildInfoCard([
-              _buildInfoRow('청약일', '${subscriptionPeriod['startDate'] ?? '-'} ~ ${subscriptionPeriod['endDate'] ?? '-'}'),
-              _buildInfoRow('환불일', schedule['refundDate'] ?? '-'),
-              _buildInfoRow('상장일', schedule['listingDate'] ?? '-'),
-            ]),
-            const SizedBox(height: 32),
+            // [섹션 4] 청약 경쟁률 (탭 토글)
+            _buildCompetitionSection(competition),
 
-            // Deposit
-            _buildSectionTitle('청약 정보'),
-            const SizedBox(height: 16),
-            _buildInfoCard([
-              _buildInfoRow('주관사', (summary['leadManagers'] as List?)?.join(', ') ?? '-'),
-              _buildInfoRow('최소 청약 증거금', '${depositInfos.isNotEmpty ? depositInfos[0]['amountForTenShares'] : '-'} 원'),
-              _buildInfoRow('유통 가능 물량', '${offeringInfo['circulatingRatio'] ?? '-'} %'),
-            ]),
-            const SizedBox(height: 40),
+            // [섹션 5] 청약 일정 (타임라인)
+            _buildTimelineSection(schedule),
+
+            // [섹션 6] 청약증거금
+            _buildDepositSection(depositInfos),
+
+            // [섹션 7] 공모주 정보
+            _buildOfferingInfoSection(offeringInfo),
+            
+            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -169,6 +291,61 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
     return Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textDark));
   }
 
+  // 요약 3열 위젯
+  Widget _buildQuickStatsRow(Map<String, dynamic> summary) {
+    final String confirmedPrice = summary['confirmedOfferPrice'] != null 
+        ? '${_formatNumber(summary['confirmedOfferPrice'])}원' 
+        : '-';
+    final String leadManager = (summary['leadManagers'] as List?)?.first ?? '-';
+    final String dateRange = _formatDateRange(
+      summary['subscriptionPeriod']?['startDate'], 
+      summary['subscriptionPeriod']?['endDate']
+    );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              children: [
+                const Text('확정공모가', style: TextStyle(color: AppColors.textGray, fontSize: 12, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 6),
+                Text(confirmedPrice, style: const TextStyle(color: AppColors.textDark, fontSize: 14, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+          Container(height: 32, width: 0.5, color: AppColors.borderGray),
+          Expanded(
+            child: Column(
+              children: [
+                const Text('주관사', style: TextStyle(color: AppColors.textGray, fontSize: 12, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 6),
+                Text(leadManager, style: const TextStyle(color: AppColors.textDark, fontSize: 14, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          Container(height: 32, width: 0.5, color: AppColors.borderGray),
+          Expanded(
+            child: Column(
+              children: [
+                const Text('청약일', style: TextStyle(color: AppColors.textGray, fontSize: 12, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 6),
+                Text(dateRange, style: const TextStyle(color: AppColors.textDark, fontSize: 14, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // [섹션 2] AIPO 매력지수 (기존 완벽한 카드 그대로 사용)
   Widget _buildScoreCard(Map<String, dynamic> attraction) {
     final score = attraction['totalScore'] ?? 0;
     final List reasons = attraction['reasons'] as List? ?? [];
@@ -228,9 +405,299 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
     );
   }
 
+  // [섹션 4] 청약 경쟁률 (탭 토글 및 수량)
+  Widget _buildCompetitionSection(Map<String, dynamic> competition) {
+    if (competition.isEmpty) return const SizedBox.shrink();
+
+    final tabKey = _isEqualTab ? 'equalAllocation' : 'proportionalAllocation';
+    final tabData = competition[tabKey] ?? {};
+    final quantity = tabData['expectedAllocationQuantity'];
+    final compRate = tabData['competitionRate'];
+
+    if (quantity == null && compRate == null) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('청약 경쟁률'),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 탭 가로형 토글러
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.bgLightBlue.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                padding: const EdgeInsets.all(4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _isEqualTab = true),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _isEqualTab ? AppColors.textDark : Colors.transparent,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '균등배정',
+                              style: TextStyle(
+                                color: _isEqualTab ? Colors.white : AppColors.textGray,
+                                fontWeight: _isEqualTab ? FontWeight.bold : FontWeight.w500,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _isEqualTab = false),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          decoration: BoxDecoration(
+                            color: !_isEqualTab ? AppColors.textDark : Colors.transparent,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '비례배정',
+                              style: TextStyle(
+                                color: !_isEqualTab ? Colors.white : AppColors.textGray,
+                                fontWeight: !_isEqualTab ? FontWeight.bold : FontWeight.w500,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // 예상 수량 수치 표기
+              Text(
+                _isEqualTab ? '예상 균등 배정 수량' : '예상 비례 배정 수량',
+                style: const TextStyle(fontSize: 13, color: AppColors.textGray, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                quantity != null ? '$quantity주' : '-주',
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: AppColors.primary),
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: AppColors.borderGray, thickness: 0.5),
+              const SizedBox(height: 16),
+              
+              // 통합 경쟁률 행
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('통합 경쟁률', style: TextStyle(fontSize: 14, color: AppColors.textGray, fontWeight: FontWeight.w500)),
+                  Text(
+                    compRate != null ? '${_formatNumber(compRate)}:1' : '-',
+                    style: const TextStyle(fontSize: 14, color: AppColors.textDark, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+
+  // [섹션 5] 청약 일정 (타임라인)
+  Widget _buildTimelineSection(Map<String, dynamic> schedule) {
+    final demandForecast = schedule['demandForecastPeriod'] ?? {};
+    final subPeriod = schedule['subscriptionPeriod'] ?? {};
+    final refundDate = schedule['refundDate'];
+    final listingDate = schedule['listingDate'];
+
+    final String demandStr = _formatDateRange(demandForecast['startDate'], demandForecast['endDate']);
+    final String subStr = _formatDateRange(subPeriod['startDate'], subPeriod['endDate']);
+    final String refundStr = _formatDateShort(refundDate);
+    final String listingStr = _formatDateShort(listingDate);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('청약 일정'),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
+          ),
+          child: Column(
+            children: [
+              _buildTimelineRow('수요예측일', demandStr, false),
+              const SizedBox(height: 20),
+              _buildTimelineRow('청약일', subStr, true), // 청약일 항상 강조
+              const SizedBox(height: 20),
+              _buildTimelineRow('환불일', refundStr, false),
+              const SizedBox(height: 20),
+              _buildTimelineRow('상장일', listingStr, false),
+            ],
+          ),
+        ),
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+
+  Widget _buildTimelineRow(String label, String dateStr, bool isActive) {
+    return Row(
+      children: [
+        Container(
+          width: 10, height: 10,
+          decoration: BoxDecoration(
+            color: isActive ? AppColors.primary : AppColors.borderGray,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Text(
+          label,
+          style: TextStyle(
+            color: isActive ? AppColors.textDark : AppColors.textGray,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+            fontSize: 14,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          dateStr,
+          style: TextStyle(
+            color: isActive ? AppColors.textDark : AppColors.textGray,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // [섹션 6] 청약증거금 목록
+  Widget _buildDepositSection(List<dynamic> depositInfos) {
+    if (depositInfos.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('청약증거금'),
+        const SizedBox(height: 16),
+        ...depositInfos.map((item) {
+          final String name = item['securitiesCompanyName'] ?? '-';
+          final double? amountValue = double.tryParse(item['amountForTenShares']?.toString() ?? '');
+          final String amountStr = amountValue != null 
+              ? '${_formatNumber(amountValue)}원' 
+              : '-원';
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40, height: 40,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFFF9E6),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.account_balance,
+                    color: Color(0xFFF2C94C),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text(
+                      '최소 10주',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textGray,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      amountStr,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }),
+        const SizedBox(height: 20), // 32 - 12 (last item margin)
+      ],
+    );
+  }
+
+  // [섹션 7] 공모주 세부 정보 표
+  Widget _buildOfferingInfoSection(Map<String, dynamic> offeringInfo) {
+    if (offeringInfo.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('공모주 정보'),
+        const SizedBox(height: 16),
+        _buildInfoCard([
+          _buildInfoRow('시가총액', _formatMarketCap(offeringInfo['marketCap'])),
+          _buildInfoRow('균등배정비율', offeringInfo['equalAllocationRatio'] != null ? '${offeringInfo['equalAllocationRatio']}%' : '-'),
+          _buildInfoRow('유통가능비율', offeringInfo['circulatingRatio'] != null ? '${offeringInfo['circulatingRatio']}%' : '-'),
+          _buildInfoRow('구주매출비율', offeringInfo['oldShareSaleRatio'] != null ? '${offeringInfo['oldShareSaleRatio']}%' : '-'),
+        ]),
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+
   Widget _buildInfoCard(List<Widget> children) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(20),
@@ -247,9 +714,22 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(fontSize: 14, color: AppColors.textGray, fontWeight: FontWeight.w500)),
-          Text(value, style: const TextStyle(fontSize: 14, color: AppColors.textDark, fontWeight: FontWeight.w700)),
+          Text(value, style: const TextStyle(fontSize: 14, color: AppColors.textDark, fontWeight: FontWeight.bold)),
         ],
       ),
     );
+  }
+
+  String? _getMarketTypeBadgeLabel(String? marketType) {
+    switch (marketType?.toUpperCase()) {
+      case 'KOSPI':
+        return 'KOSPI';
+      case 'KOSDAQ':
+        return 'KOSDAQ';
+      case 'KONEX':
+        return 'KONEX';
+      default:
+        return null;
+    }
   }
 }

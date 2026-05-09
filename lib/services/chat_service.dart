@@ -108,5 +108,28 @@ class ChatService {
       rethrow;
     }
   }
+
+  // ── 세션 고정/해제 ─────────────────────────────────────
+  /// 특정 대화 세션을 고정하거나 고정 해제합니다.
+  Future<void> pinSession(String sessionId, bool pinned) async {
+    try {
+      await _dio.patch(
+        '/chat/sessions/$sessionId/pin',
+        data: {'pinned': pinned},
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // ── 세션 삭제 ──────────────────────────────────────────
+  /// 특정 대화 세션을 삭제합니다.
+  Future<void> deleteSession(String sessionId) async {
+    try {
+      await _dio.delete('/chat/sessions/$sessionId');
+    } catch (e) {
+      rethrow;
+    }
+  }
 }
 
