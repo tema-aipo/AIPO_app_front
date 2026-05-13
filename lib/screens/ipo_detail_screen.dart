@@ -272,7 +272,7 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
             _buildCompetitionSection(competition),
 
             // [섹션 5] 청약 일정 (타임라인)
-            _buildTimelineSection(schedule),
+            _buildTimelineSection(schedule, summary['companyName'] ?? widget.ipoName),
 
             // [섹션 6] 청약증거금
             _buildDepositSection(depositInfos),
@@ -523,7 +523,7 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
   }
 
   // [섹션 5] 청약 일정 (타임라인)
-  Widget _buildTimelineSection(Map<String, dynamic> schedule) {
+  Widget _buildTimelineSection(Map<String, dynamic> schedule, String companyName) {
     final demandForecast = schedule['demandForecastPeriod'] ?? {};
     final subPeriod = schedule['subscriptionPeriod'] ?? {};
     final refundDate = schedule['refundDate'];
@@ -537,7 +537,7 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle('청약 일정'),
+        _buildSectionTitle('$companyName 일정'),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(20),
@@ -548,13 +548,13 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
           ),
           child: Column(
             children: [
-              _buildTimelineRow('수요예측일', demandStr, false),
+              _buildTimelineRow('수요예측일', demandStr),
               const SizedBox(height: 20),
-              _buildTimelineRow('청약일', subStr, true), // 청약일 항상 강조
+              _buildTimelineRow('청약일', subStr),
               const SizedBox(height: 20),
-              _buildTimelineRow('환불일', refundStr, false),
+              _buildTimelineRow('환불일', refundStr),
               const SizedBox(height: 20),
-              _buildTimelineRow('상장일', listingStr, false),
+              _buildTimelineRow('상장일', listingStr),
             ],
           ),
         ),
@@ -563,31 +563,31 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
     );
   }
 
-  Widget _buildTimelineRow(String label, String dateStr, bool isActive) {
+  Widget _buildTimelineRow(String label, String dateStr) {
     return Row(
       children: [
         Container(
           width: 10, height: 10,
-          decoration: BoxDecoration(
-            color: isActive ? AppColors.primary : AppColors.borderGray,
+          decoration: const BoxDecoration(
+            color: AppColors.primary,
             shape: BoxShape.circle,
           ),
         ),
         const SizedBox(width: 16),
         Text(
           label,
-          style: TextStyle(
-            color: isActive ? AppColors.textDark : AppColors.textGray,
-            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+          style: const TextStyle(
+            color: AppColors.textGray,
+            fontWeight: FontWeight.w500,
             fontSize: 14,
           ),
         ),
         const Spacer(),
         Text(
           dateStr,
-          style: TextStyle(
-            color: isActive ? AppColors.textDark : AppColors.textGray,
-            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+          style: const TextStyle(
+            color: AppColors.textDark,
+            fontWeight: FontWeight.w600,
             fontSize: 14,
           ),
         ),

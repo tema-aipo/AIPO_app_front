@@ -247,65 +247,65 @@ class _ChatbotDrawerState extends State<ChatbotDrawer> {
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                            child: Text(
-                              '북마크',
-                              style: TextStyle(
-                                color: AppColors.textGray,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
+                  : _sessions.isEmpty
+                      ? const Center(
+                          child: Text(
+                            '대화 기록이 없습니다.',
+                            style: TextStyle(
+                              color: AppColors.textGray,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
-                          if (pinnedSessions.isEmpty)
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                              child: Text(
-                                '북마크된 대화가 없습니다.',
-                                style: TextStyle(
-                                  color: AppColors.textGray,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
+                        )
+                      : SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (pinnedSessions.isNotEmpty) ...[
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                                  child: Text(
+                                    '북마크',
+                                    style: TextStyle(
+                                      color: AppColors.textGray,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                ...pinnedSessions.map((s) => _buildSessionItem(s)),
+                                const SizedBox(height: 16),
+                              ],
+                              const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                                child: Text(
+                                  '최근 기록',
+                                  style: TextStyle(
+                                    color: AppColors.textGray,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
-                            )
-                          else
-                            ...pinnedSessions.map((s) => _buildSessionItem(s)),
-                          const SizedBox(height: 16),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                            child: Text(
-                              '최근 기록',
-                              style: TextStyle(
-                                color: AppColors.textGray,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                              if (recentSessions.isEmpty)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                  child: Text(
+                                    '최근 대화 기록이 없습니다.',
+                                    style: TextStyle(
+                                      color: AppColors.textGray,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                )
+                              else
+                                ...recentSessions.map((s) => _buildSessionItem(s)),
+                            ],
                           ),
-                          if (recentSessions.isEmpty)
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                              child: Text(
-                                '최근 대화 기록이 없습니다.',
-                                style: TextStyle(
-                                  color: AppColors.textGray,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            )
-                          else
-                            ...recentSessions.map((s) => _buildSessionItem(s)),
-                        ],
-                      ),
-                    ),
+                        ),
             ),
             
             const Divider(height: 1),

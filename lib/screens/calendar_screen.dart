@@ -126,9 +126,9 @@ class CalendarScreenState extends State<CalendarScreen> {
       }
 
       final rawData = await _ipoService.getCalendarData(monthStr, selectedDate: selectedDateParam);
-      
+
       final Map<String, List<CalendarEvent>> newMap = {};
-      
+
       // 1. 달력 칸 정보(calendarCells) 파싱
       final List<dynamic> cells = rawData['calendarCells'] ?? [];
       for (var cell in cells) {
@@ -143,9 +143,9 @@ class CalendarScreenState extends State<CalendarScreen> {
             type = EventType.demandForecast;
           } else if (typeStr.contains('SUBSCRIPTION')) {
             type = EventType.subscription;
-          } else if (typeStr == 'REFUND') {
+          } else if (typeStr.contains('REFUND')) {
             type = EventType.refund;
-          } else if (typeStr == 'LISTING') {
+          } else if (typeStr.contains('LISTING')) {
             type = EventType.listing;
           }
           
@@ -188,9 +188,9 @@ class CalendarScreenState extends State<CalendarScreen> {
               type = EventType.demandForecast;
             } else if (typeStr.contains('SUBSCRIPTION')) {
               type = EventType.subscription;
-            } else if (typeStr == 'REFUND') {
+            } else if (typeStr.contains('REFUND')) {
               type = EventType.refund;
-            } else if (typeStr == 'LISTING') {
+            } else if (typeStr.contains('LISTING')) {
               type = EventType.listing;
             }
             
@@ -212,7 +212,10 @@ class CalendarScreenState extends State<CalendarScreen> {
           }
           
           if (selectedEvents.isNotEmpty) {
-            newMap[selDateStr] = selectedEvents;
+            final existing = newMap[selDateStr] ?? [];
+            final mergedKeys = selectedEvents.map((e) => '${e.ipoId}_${e.type}').toSet();
+            final filtered = existing.where((e) => !mergedKeys.contains('${e.ipoId}_${e.type}')).toList();
+            newMap[selDateStr] = [...filtered, ...selectedEvents];
           }
         }
       }

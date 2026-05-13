@@ -102,12 +102,13 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
       );
 
       // 3. 응답 처리
+      final assistantMsg = response['assistantMessage'];
       final aiMessage = ChatMessage(
-        id: response['messageId'].toString(),
-        text: response['content'] ?? '',
+        id: (assistantMsg?['messageId'] ?? '').toString(),
+        text: assistantMsg?['content'] ?? '',
         isUser: false,
-        aiSummaryData: response['summaryData'] != null ? Map<String, String>.from(response['summaryData']) : null,
-        aiSecondaryText: response['recommendationText'],
+        aiSummaryData: assistantMsg?['summaryData'] != null ? Map<String, String>.from(assistantMsg['summaryData']) : null,
+        aiSecondaryText: assistantMsg?['recommendationText'],
       );
 
       if (!mounted) return;

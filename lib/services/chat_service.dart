@@ -68,7 +68,7 @@ class ChatService {
     try {
       final response = await _dio.post(
         ApiEndpoints.chatMessages(sessionId),
-        data: {'content': message},
+        data: {'question': message},
       );
       return response.data as Map<String, dynamic>;
     } catch (e) {
@@ -80,8 +80,8 @@ class ChatService {
   /// 특정 세션의 과거 대화 기록을 가져옵니다.
   Future<List<dynamic>> getMessages(String sessionId) async {
     try {
-      final response = await _dio.get(ApiEndpoints.chatMessages(sessionId));
-      return response.data as List<dynamic>;
+      final response = await _dio.get('/chat/sessions/$sessionId');
+      return response.data['messages'] as List<dynamic>;
     } catch (e) {
       rethrow;
     }
