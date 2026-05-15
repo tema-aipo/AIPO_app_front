@@ -8,8 +8,12 @@ import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // 환경 변수 로드
-  await dotenv.load(fileName: '.env');
+  // 환경 변수 로드 (웹 배포 환경을 고려하여 assets/env 사용)
+  try {
+    await dotenv.load(fileName: 'assets/env');
+  } catch (e) {
+    debugPrint('환경 변수 파일을 로드할 수 없습니다: $e');
+  }
   // Dio HTTP 클라이언트 초기화
   DioClient.instance.initialize();
   
