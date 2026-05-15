@@ -12,7 +12,10 @@ class DioClient {
 
   /// 앱 시작 시 main.dart에서 반드시 호출해야 합니다.
   void initialize() {
-    final baseUrl = dotenv.env['BASE_URL'] ?? 'http://10.0.2.2:8080/api/v1';
+    // dotenv 로드가 실패한 환경(웹 배포 등)에서도 앱이 죽지 않도록
+    // 초기화 여부를 확인한 뒤 안전하게 값을 읽는다.
+    final baseUrl = (dotenv.isInitialized ? dotenv.env['BASE_URL'] : null)
+        ?? 'http://10.0.2.2:8080/api/v1';
 
     _dio = Dio(
       BaseOptions(
