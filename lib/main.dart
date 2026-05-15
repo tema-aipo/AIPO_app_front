@@ -36,6 +36,17 @@ class MyApp extends StatelessWidget {
           seedColor: const Color(0xFF0066FF),
         ),
       ),
+      builder: (context, child) {
+        return Container(
+          color: const Color(0xFFF5F6F8), // 브라우저 배경색
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: child,
+            ),
+          ),
+        );
+      },
       home: ValueListenableBuilder(
         valueListenable: AuthManager.instance.currentUser,
         builder: (context, user, _) {
