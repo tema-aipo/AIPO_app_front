@@ -226,7 +226,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                     child: Center(
                                       child: Text(
-                                        featuredIpo['name'].substring(0, 1), 
+                                        (featuredIpo['name'] as String? ?? '').isNotEmpty
+                                            ? (featuredIpo['name'] as String).substring(0, 1)
+                                            : '?',
                                         style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800, fontSize: 15)
                                       ),
                                     ),

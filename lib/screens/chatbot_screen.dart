@@ -208,6 +208,16 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
         onLoadChat: (chatId) {
           _loadSessionMessages(chatId);
         },
+        currentSessionId: _currentSessionId,
+        onCurrentSessionDeleted: () {
+          setState(() {
+            _messages.clear();
+            _currentSessionId = null;
+          });
+          _animationController.reset();
+          _animationController.forward();
+          _initializeSession();
+        },
       ),
       appBar: AppBar(
         backgroundColor: AppColors.white,

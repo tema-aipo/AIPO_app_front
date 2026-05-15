@@ -15,14 +15,18 @@ class IpoService {
         queryParameters: {'tab': tab},
       );
       final data = response.data as Map<String, dynamic>;
-      
+
       return {
         'featuredIpos': data['featuredIpos'] ?? data['featured'] ?? [],
         'trendingIpos': data['trendingIpos'] ?? data['trending'] ?? [],
-        'attractiveness': data['attractiveness'] ?? {
-          'items': data['attractivenessItems'] ?? data['attractive'] ?? [],
-        },
-        'attractivenessItems': data['attractivenessItems'] ?? data['attractive'] ?? (data['attractiveness']?['items']) ?? [],
+        'attractiveness': data['attractiveness'] ??
+            {
+              'items': data['attractivenessItems'] ?? data['attractive'] ?? [],
+            },
+        'attractivenessItems': data['attractivenessItems'] ??
+            data['attractive'] ??
+            (data['attractiveness']?['items']) ??
+            [],
       };
     } catch (e) {
       rethrow;
@@ -69,7 +73,8 @@ class IpoService {
   // ── 캘린더 데이터 조회 ────────────────────────────────
   /// 특정 월의 공모주 일정(청약, 환불, 상장 등)을 가져옵니다.
   /// [month] : 'YYYY-MM' 형식 (예: '2026-04')
-  Future<Map<String, dynamic>> getCalendarData(String month, {String? selectedDate}) async {
+  Future<Map<String, dynamic>> getCalendarData(String month,
+      {String? selectedDate}) async {
     try {
       final parts = month.split('-');
       final int year = int.parse(parts[0]);
@@ -89,12 +94,11 @@ class IpoService {
     }
   }
 
-
   // ── 관심종목 토글 ─────────────────────────────────────
   /// 관심종목 등록/삭제 처리를 합니다.
   Future<void> toggleFavorite(String ipoId, bool isFavorite) async {
     try {
-      final String url = '/users/me/favorites/$ipoId'; 
+      final String url = '/users/me/favorites/$ipoId';
       if (isFavorite) {
         await _dio.post(url);
       } else {

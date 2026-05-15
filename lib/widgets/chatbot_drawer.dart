@@ -5,11 +5,15 @@ import '../services/chat_service.dart';
 class ChatbotDrawer extends StatefulWidget {
   final VoidCallback onNewChat;
   final Function(String) onLoadChat;
+  final String? currentSessionId;
+  final VoidCallback? onCurrentSessionDeleted;
 
   const ChatbotDrawer({
     super.key,
     required this.onNewChat,
     required this.onLoadChat,
+    this.currentSessionId,
+    this.onCurrentSessionDeleted,
   });
 
   @override
@@ -77,6 +81,10 @@ class _ChatbotDrawerState extends State<ChatbotDrawer> {
     try {
       await _chatService.deleteSession(sessionId);
       _fetchSessions();
+      if (sessionId == widget.currentSessionId) {
+        if (mounted) Navigator.pop(context);
+        widget.onCurrentSessionDeleted?.call();
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -115,9 +123,15 @@ class _ChatbotDrawerState extends State<ChatbotDrawer> {
 
     setState(() => _isLoading = true);
     try {
+      final deletedIds = unpinnedSessions.map((s) => s['sessionId'].toString()).toList();
       // Delete unpinned sessions in parallel
       await Future.wait(unpinnedSessions.map((s) => _chatService.deleteSession(s['sessionId'].toString())));
       await _fetchSessions();
+      
+      if (widget.currentSessionId != null && deletedIds.contains(widget.currentSessionId)) {
+        if (mounted) Navigator.pop(context);
+        widget.onCurrentSessionDeleted?.call();
+      }
     } catch (e) {
       setState(() => _isLoading = false);
       _showSnackBar('기록 삭제 실패: $e');
