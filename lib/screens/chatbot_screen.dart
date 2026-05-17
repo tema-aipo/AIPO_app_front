@@ -34,32 +34,39 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
-    _animationController.forward();
-    
-    // 세션 생성 → 추천 질문 로드
     _initializeSession();
   }
 
   Future<void> _initializeSession() async {
+    // 세션을 미리 생성하지 않음 — 첫 메시지 전송 시 _handleSend()에서 lazy 생성
+    // 추천 질문만 가져오기 위해 임시 세션 생성 후 즉시 삭제
     try {
       final sessionData = await _chatService.createSession(title: '새 대화');
+      final tempSessionId = sessionData['sessionId'].toString();
+
+      final List<dynamic> rawQuestions = sessionData['recommendedQuestions'] ?? [];
       if (!mounted) return;
       setState(() {
-        _currentSessionId = sessionData['sessionId'].toString();
-        
-        // 추천 질문 파싱
-        final List<dynamic> rawQuestions = sessionData['recommendedQuestions'] ?? [];
         _recommendedQuestions = rawQuestions
             .map((q) => (q as Map<String, dynamic>)['questionText'] as String? ?? '')
             .where((text) => text.isNotEmpty)
             .toList();
-        
+        _currentSessionId = null;
         _isLoadingRecommendations = false;
       });
+
+      // 추천 질문 로드 후 애니메이션 시작
+      _animationController.forward();
+
+      // 임시 세션 삭제 (빈 세션이 기록에 남지 않도록)
+      await _chatService.deleteSession(tempSessionId);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _isLoadingRecommendations = false);
-      // 세션 생성 실패 시 기본 추천 질문 (fallback)
+      setState(() {
+        _currentSessionId = null;
+        _isLoadingRecommendations = false;
+      });
+      _animationController.forward();
     }
   }
 
@@ -195,6 +202,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
     return Scaffold(
       backgroundColor: AppColors.white,
       drawer: ChatbotDrawer(
+        hasMessages: _messages.isNotEmpty,
         onNewChat: () {
           setState(() {
             _messages.clear();

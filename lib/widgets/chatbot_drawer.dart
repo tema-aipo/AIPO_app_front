@@ -7,6 +7,7 @@ class ChatbotDrawer extends StatefulWidget {
   final Function(String) onLoadChat;
   final String? currentSessionId;
   final VoidCallback? onCurrentSessionDeleted;
+  final bool hasMessages;
 
   const ChatbotDrawer({
     super.key,
@@ -14,6 +15,7 @@ class ChatbotDrawer extends StatefulWidget {
     required this.onLoadChat,
     this.currentSessionId,
     this.onCurrentSessionDeleted,
+    this.hasMessages = false,
   });
 
   @override
@@ -29,6 +31,14 @@ class _ChatbotDrawerState extends State<ChatbotDrawer> {
   void initState() {
     super.initState();
     _fetchSessions();
+  }
+
+  @override
+  void didUpdateWidget(ChatbotDrawer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.hasMessages && widget.hasMessages) {
+      _fetchSessions();
+    }
   }
 
   Future<void> _fetchSessions() async {
@@ -215,8 +225,11 @@ class _ChatbotDrawerState extends State<ChatbotDrawer> {
 
   @override
   Widget build(BuildContext context) {
-    final pinnedSessions = _sessions.where((s) => s['pinned'] == true).toList();
-    final recentSessions = _sessions.where((s) => s['pinned'] != true).toList();
+    final visibleSessions = (!widget.hasMessages && widget.currentSessionId != null)
+        ? _sessions.where((s) => s['sessionId'].toString() != widget.currentSessionId).toList()
+        : _sessions;
+    final pinnedSessions = visibleSessions.where((s) => s['pinned'] == true).toList();
+    final recentSessions = visibleSessions.where((s) => s['pinned'] != true).toList();
 
     return Drawer(
       backgroundColor: AppColors.white,

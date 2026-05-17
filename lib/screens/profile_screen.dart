@@ -22,6 +22,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _confirmPasswordController = TextEditingController();
   
   bool _isLoading = false;
+  bool _obscureCurrent = true;
+  bool _obscureNew = true;
+  bool _obscureConfirm = true;
 
   @override
   void dispose() {
@@ -138,11 +141,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             // Password Section
             const Text('비밀번호 변경', style: TextStyle(color: AppColors.textDark, fontSize: 18, fontWeight: FontWeight.w800)),
             const SizedBox(height: 16),
-            _buildTextField('현재 비밀번호', _currentPasswordController),
+            _buildTextField('현재 비밀번호', _currentPasswordController, _obscureCurrent, () => setState(() => _obscureCurrent = !_obscureCurrent)),
             const SizedBox(height: 16),
-            _buildTextField('새 비밀번호 (영문, 숫자, 특수문자 조합)', _newPasswordController),
+            _buildTextField('새 비밀번호 (영문, 숫자, 특수문자 조합)', _newPasswordController, _obscureNew, () => setState(() => _obscureNew = !_obscureNew)),
             const SizedBox(height: 16),
-            _buildTextField('새 비밀번호 확인', _confirmPasswordController),
+            _buildTextField('새 비밀번호 확인', _confirmPasswordController, _obscureConfirm, () => setState(() => _obscureConfirm = !_obscureConfirm)),
             const SizedBox(height: 48),
 
             // Save Button
@@ -192,14 +195,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildTextField(String hint, TextEditingController controller) {
+  Widget _buildTextField(String hint, TextEditingController controller, bool obscure, VoidCallback onToggle) {
     return TextField(
       controller: controller,
-      obscureText: true,
+      obscureText: obscure,
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: AppColors.textGray, fontSize: 15, fontWeight: FontWeight.w500),
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        suffixIcon: IconButton(
+          icon: Icon(
+            obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+            color: AppColors.textGray,
+            size: 22,
+          ),
+          onPressed: onToggle,
+        ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: AppColors.borderGray.withOpacity(0.5)),

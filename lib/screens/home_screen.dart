@@ -154,7 +154,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 24),
                   
                   // Section A: AIPO's Pick
-                  if (featuredIpo != null) 
+                  if (featuredIpo != null) ...[
                   Container(
                     decoration: BoxDecoration(
                       color: const Color(0xFFE7F0FF),
@@ -167,6 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ],
                     ),
+
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
@@ -256,9 +257,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
-                  
                   const SizedBox(height: 48),
-                  
+                  ],
+
                   // Section B: 실시간 조회 급등
                   Text('실시간 조회 급등', style: AppTextStyles.h3.copyWith(fontSize: 18)),
                   const SizedBox(height: 20),
