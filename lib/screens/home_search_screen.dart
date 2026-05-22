@@ -405,7 +405,7 @@ class _HomeSearchScreenState extends State<HomeSearchScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '• ${score}점',
+                    '• $score점',
                     style: const TextStyle(
                       color: AppColors.primary,
                       fontSize: 15,

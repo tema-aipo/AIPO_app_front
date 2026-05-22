@@ -4,6 +4,7 @@ import '../theme/app_text_styles.dart';
 import 'ipo_detail_screen.dart';
 import 'home_search_screen.dart';
 import '../services/ipo_service.dart';
+import '../services/user_service.dart';
 import '../models/auth_manager.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -15,12 +16,18 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final IpoService _ipoService = IpoService();
+  final UserService _userService = UserService();
   bool _isLoading = true;
   Map<String, dynamic>? _homeData;
   
   int _selectedFilterIndex = 0;
   final List<String> _filterKeys = ['recentGrowth', 'subscriptionUpcoming', 'favorite'];
   final List<String> _filters = ['최근 상장순', '청약 예정순', '관심 종목순'];
+
+  static const int _attractInitialCount = 4;
+  static const int _attractStep = 4;
+  static const int _attractMaxCount = 20;
+  int _attractVisibleCount = _attractInitialCount;
 
   @override
   void initState() {
@@ -31,9 +38,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _fetchHomeData() async {
     setState(() => _isLoading = true);
     try {
-      final data = await _ipoService.getHomeData(
-        _filterKeys[_selectedFilterIndex],
-      );
+      Map<String, dynamic> data;
+      if (_filterKeys[_selectedFilterIndex] == 'favorite') {
+        data = await _ipoService.getHomeData('favorite');
+        final favorites = await _userService.getFavorites();
+        data['attractivenessItems'] = favorites;
+        data['attractiveness'] = {'items': favorites};
+      } else {
+        data = await _ipoService.getHomeData(
+          _filterKeys[_selectedFilterIndex],
+        );
+      }
       setState(() {
         _homeData = data;
         _isLoading = false;
@@ -52,6 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_selectedFilterIndex == index) return;
     setState(() {
       _selectedFilterIndex = index;
+      _attractVisibleCount = _attractInitialCount;
     });
     _fetchHomeData();
   }
@@ -260,14 +276,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 48),
                   ],
 
-                  // Section B: 실시간 조회 급등
-                  Text('실시간 조회 급등', style: AppTextStyles.h3.copyWith(fontSize: 18)),
+                  // Section B: 인기 누적 조회 공모주
+                  Text('인기 누적 조회 공모주', style: AppTextStyles.h3.copyWith(fontSize: 18)),
                   const SizedBox(height: 20),
                   
                   if (trendingIpos.isEmpty) 
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 20),
-                      child: Text('급등 종목이 없습니다.', style: TextStyle(color: AppColors.textGray)),
+                      child: Text('아직 조회된 공모주가 없습니다.', style: TextStyle(color: AppColors.textGray)),
                     )
                   else
                   Column(
@@ -369,26 +385,105 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Text('해당 조건의 종목이 없습니다.', style: TextStyle(color: AppColors.textGray)),
                     ))
                   else
-                                    Column(
-                    children: attractivenessItems.map<Widget>((item) {
-                      return _buildIpoCard(
-                        score: item['score'] ?? 0,
-                        ipoName: item['name'] ?? '-',
-                        leadManager: item['leadManager'] ?? '-',
-                        dateLabel: item['subscriptionStartDate'] != null
-                            ? '${_formatDate(item['subscriptionStartDate']?.toString())} 청약 시작'
-                            : '-',
-                        status: null,   // 홈에서는 상태 배지 미표시
-                        trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.borderGray),
-                        onTap: () => Navigator.push(context, MaterialPageRoute(
-                          builder: (_) => IpoDetailScreen(
-                            ipoId: item['ipoId'].toString(),
-                            ipoName: item['name'],
+                    Builder(builder: (context) {
+                      final int totalAvailable =
+                          (attractivenessItems.length as int) < _attractMaxCount
+                              ? attractivenessItems.length as int
+                              : _attractMaxCount;
+                      final int shownCount = _attractVisibleCount < totalAvailable
+                          ? _attractVisibleCount
+                          : totalAvailable;
+                      final int remaining = totalAvailable - shownCount;
+                      final int nextStep = remaining < _attractStep ? remaining : _attractStep;
+
+                      return Column(
+                        children: [
+                          Column(
+                            children: attractivenessItems.take(shownCount).map<Widget>((item) {
+                              final isRecentGrowth =
+                                  _filterKeys[_selectedFilterIndex] == 'recentGrowth';
+                              final String dateLabel;
+                              if (isRecentGrowth && item['listingDate'] != null) {
+                                dateLabel =
+                                    '${_formatDate(item['listingDate']?.toString())} 상장';
+                              } else if (item['subscriptionStartDate'] != null) {
+                                dateLabel =
+                                    '${_formatDate(item['subscriptionStartDate']?.toString())} 청약 시작';
+                              } else {
+                                dateLabel = (item['dateRange'] ?? '-') as String;
+                              }
+                              return _buildIpoCard(
+                                score: double.tryParse((item['score'] ?? item['attractionScore'] ?? 0).toString())?.round() ?? 0,
+                                ipoName: item['name'] ?? item['companyName'] ?? '-',
+                                leadManager: item['leadManager'] ?? '-',
+                                dateLabel: dateLabel,
+                                status: null,   // 홈에서는 상태 배지 미표시
+                                trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.borderGray),
+                                onTap: () => Navigator.push(context, MaterialPageRoute(
+                                  builder: (_) => IpoDetailScreen(
+                                    ipoId: item['ipoId'].toString(),
+                                    ipoName: item['name'] ?? item['companyName'] ?? '',
+                                  ),
+                                )),
+                              );
+                            }).toList(),
                           ),
-                        )),
+                          if (remaining > 0) ...[
+                            const SizedBox(height: 4),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _attractVisibleCount = (_attractVisibleCount + _attractStep)
+                                            .clamp(0, _attractMaxCount);
+                                  });
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  side: BorderSide(color: AppColors.borderGray.withOpacity(0.7)),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  foregroundColor: AppColors.textDark,
+                                ),
+                                child: Text(
+                                  '더보기 +$nextStep',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ] else if (shownCount > _attractInitialCount) ...[
+                            const SizedBox(height: 4),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _attractVisibleCount = _attractInitialCount;
+                                  });
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  side: BorderSide(color: AppColors.borderGray.withOpacity(0.7)),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  foregroundColor: AppColors.textDark,
+                                ),
+                                child: const Icon(
+                                  Icons.keyboard_arrow_up,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       );
-                    }).toList(),
-                  ),
+                    }),
                   
                   const SizedBox(height: 40),
                 ],

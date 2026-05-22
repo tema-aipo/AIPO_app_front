@@ -105,37 +105,40 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
   }
 
-  // 헬퍼: 시가총액 포맷팅 (원 -> 억원)
-  String _formatMarketCap(dynamic rawCap) {
-    if (rawCap == null) return '-';
-    final double? numVal = double.tryParse(rawCap.toString());
-    if (numVal == null) return rawCap.toString();
-
-    // 1억 이상인 경우 억 단위로 환산
-    if (numVal >= 100000000) {
-      final double inEck = numVal / 100000000;
-      return '${_formatNumber(inEck)}억원';
-    }
-    return '${_formatNumber(numVal)}억원';
-  }
-
-  // 헬퍼: 날짜 단축 포맷팅 (예: '2026-04-08' -> '04.08')
+  // 헬퍼: 날짜 포맷팅 (예: '2026-04-08' -> '2026.04.08')
   String _formatDateShort(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return '-';
     final parts = dateStr.split('-');
     if (parts.length >= 3) {
       final month = int.parse(parts[1]).toString().padLeft(2, '0');
       final day = int.parse(parts[2]).toString().padLeft(2, '0');
-      return '$month.$day';
+      return '${parts[0]}.$month.$day';
     }
     return dateStr;
   }
 
-  // 헬퍼: 날짜 기간 포맷팅 (예: '04.08 ~ 04.09')
+  // 헬퍼: 날짜 기간 포맷팅 (예: '2026.04.08 ~ 04.09')
   String _formatDateRange(String? startStr, String? endStr) {
     if ((startStr == null || startStr.isEmpty) && (endStr == null || endStr.isEmpty)) return '-';
     if (startStr == null || startStr.isEmpty) return _formatDateShort(endStr);
     if (endStr == null || endStr.isEmpty) return _formatDateShort(startStr);
+    
+    final startParts = startStr.split('-');
+    final endParts = endStr.split('-');
+    
+    if (startParts.length >= 3 && endParts.length >= 3) {
+      final startYear = startParts[0];
+      final endYear = endParts[0];
+      final startMonth = int.parse(startParts[1]).toString().padLeft(2, '0');
+      final startDay = int.parse(startParts[2]).toString().padLeft(2, '0');
+      final endMonth = int.parse(endParts[1]).toString().padLeft(2, '0');
+      final endDay = int.parse(endParts[2]).toString().padLeft(2, '0');
+      
+      if (startYear == endYear) {
+        return '$startYear.$startMonth.$startDay ~ $endMonth.$endDay';
+      }
+    }
+    
     return '${_formatDateShort(startStr)} ~ ${_formatDateShort(endStr)}';
   }
 
@@ -164,7 +167,6 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
     final competition = data['subscriptionCompetition'] ?? {};
     final schedule = data['schedule'] ?? {};
     final depositInfos = data['depositInfos'] as List? ?? [];
-    final offeringInfo = data['offeringInfo'] ?? {};
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -276,9 +278,6 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
             // [섹션 6] 청약증거금
             _buildDepositSection(depositInfos),
 
-            // [섹션 7] 공모주 정보
-            _buildOfferingInfoSection(offeringInfo),
-            
             const SizedBox(height: 24),
           ],
         ),
@@ -338,7 +337,11 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
               children: [
                 const Text('청약일', style: TextStyle(color: AppColors.textGray, fontSize: 12, fontWeight: FontWeight.w500)),
                 const SizedBox(height: 6),
-                Text(dateRange, style: const TextStyle(color: AppColors.textDark, fontSize: 14, fontWeight: FontWeight.bold)),
+                Text(
+                  dateRange, 
+                  style: const TextStyle(color: AppColors.textDark, fontSize: 12, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
               ],
             ),
           ),
@@ -349,7 +352,8 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
 
   // [섹션 2] AIPO 매력지수 (기존 완벽한 카드 그대로 사용)
   Widget _buildScoreCard(Map<String, dynamic> attraction) {
-    final score = attraction['totalScore'] ?? _detailData?['score'] ?? _detailData?['attractionScore'] ?? 0;
+    final rawScore = attraction['totalScore'] ?? _detailData?['score'] ?? _detailData?['attractionScore'] ?? 0;
+    final score = double.tryParse(rawScore.toString())?.round() ?? 0;
     final List reasons = attraction['reasons'] as List? ?? [];
 
     return Container(
@@ -686,28 +690,6 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
             );
           }),
         const SizedBox(height: 20), // 32 - 12 (last item margin)
-      ],
-    );
-  }
-
-  // [섹션 7] 공모주 세부 정보 표
-  Widget _buildOfferingInfoSection(Map<String, dynamic> offeringInfo) {
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionTitle('공모주 정보'),
-        const SizedBox(height: 16),
-        if (offeringInfo.isEmpty)
-          _buildEmptyDataCard()
-        else
-          _buildInfoCard([
-            _buildInfoRow('시가총액', _formatMarketCap(offeringInfo['marketCap'])),
-            _buildInfoRow('균등배정비율', offeringInfo['equalAllocationRatio'] != null ? '${offeringInfo['equalAllocationRatio']}%' : '-'),
-            _buildInfoRow('유통가능비율', offeringInfo['circulatingRatio'] != null ? '${offeringInfo['circulatingRatio']}%' : '-'),
-            _buildInfoRow('구주매출비율', offeringInfo['oldShareSaleRatio'] != null ? '${offeringInfo['oldShareSaleRatio']}%' : '-'),
-          ]),
-        const SizedBox(height: 32),
       ],
     );
   }

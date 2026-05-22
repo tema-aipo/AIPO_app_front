@@ -10,10 +10,10 @@ class CalendarEvent {
   final EventType type;
   final int? score;
   final String? leadManager;
-  
+
   CalendarEvent({
     required this.ipoId,
-    required this.name, 
+    required this.name,
     required this.type,
     this.score,
     this.leadManager,
@@ -83,6 +83,7 @@ class CalendarScreenState extends State<CalendarScreen> {
   final Set<EventType> _activeFilters = EventType.values.toSet();
   Map<String, List<CalendarEvent>> _eventsMap = {};
   final Set<String> _favoriteIpoIds = {};
+  final GlobalKey _taskListKey = GlobalKey();
 
   @override
   void initState() {
@@ -436,6 +437,17 @@ class CalendarScreenState extends State<CalendarScreen> {
             onTap: () {
               setState(() => _selectedDate = cell.date);
               _fetchCalendarData(targetSelectedDate: cell.date, showLoading: false);
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                final ctx = _taskListKey.currentContext;
+                if (ctx != null) {
+                  Scrollable.ensureVisible(
+                    ctx,
+                    duration: const Duration(milliseconds: 350),
+                    curve: Curves.easeOutCubic,
+                    alignment: 0.0,
+                  );
+                }
+              });
             },
             child: Column(
               children: [
@@ -450,6 +462,23 @@ class CalendarScreenState extends State<CalendarScreen> {
                   decoration: BoxDecoration(color: e.type.bgColor, borderRadius: BorderRadius.circular(2)),
                   child: Text(e.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: e.type.textColor, fontSize: 8, fontWeight: FontWeight.bold)),
                 )),
+                if (events.length > 2)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgGray,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                    child: Text(
+                      '+${events.length - 2}',
+                      style: const TextStyle(
+                        color: AppColors.textGray,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
               ],
             ),
           );
@@ -473,8 +502,9 @@ class CalendarScreenState extends State<CalendarScreen> {
 
     final dateKey = _getDateKey(_selectedDate!);
     final tasks = (_eventsMap[dateKey] ?? []).where((t) => _activeFilters.contains(t.type)).toList();
-    
+
     return Padding(
+      key: _taskListKey,
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
