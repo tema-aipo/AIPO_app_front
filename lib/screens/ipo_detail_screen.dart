@@ -163,6 +163,7 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
     final data = _detailData!;
     final summary = data['summary'] ?? {};
     final attraction = data['attraction'] ?? {};
+    final attractiveness = data['attractiveness'] ?? {};
     final forecast = data['demandForecast'] ?? {};
     final competition = data['subscriptionCompetition'] ?? {};
     final schedule = data['schedule'] ?? {};
@@ -249,7 +250,7 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
             const SizedBox(height: 32),
 
             // [섹션 2] AIPO 매력지수 (기존 UI 보존)
-            _buildScoreCard(attraction),
+            _buildScoreCard(attraction, attractiveness),
             const SizedBox(height: 32),
 
             // [섹션 3] 기관 수요예측 결과
@@ -351,9 +352,18 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
   }
 
   // [섹션 2] AIPO 매력지수 (기존 완벽한 카드 그대로 사용)
-  Widget _buildScoreCard(Map<String, dynamic> attraction) {
-    final rawScore = attraction['totalScore'] ?? _detailData?['score'] ?? _detailData?['attractionScore'] ?? 0;
+  Widget _buildScoreCard(Map<String, dynamic> attraction, Map<String, dynamic> attractiveness) {
+    final selectedProfile = attractiveness['selectedProfile']?.toString();
+    final selected = attractiveness['selected'] as Map<String, dynamic>?;
+    final defaultScore = attractiveness['default'] as Map<String, dynamic>?;
+    final scoreData = selected ?? defaultScore;
+    final rawScore = scoreData?['score'] ?? attraction['totalScore'] ?? _detailData?['score'] ?? _detailData?['attractionScore'] ?? 0;
     final score = double.tryParse(rawScore.toString())?.round() ?? 0;
+    final grade = scoreData?['grade']?.toString();
+    final reason = scoreData?['reason']?.toString();
+    final profileLabel = _profileLabel(selectedProfile);
+    final isProfileSelected = profileLabel != null;
+    final notice = attractiveness['notice']?.toString();
     final List reasons = attraction['reasons'] as List? ?? [];
 
     return Container(
@@ -372,6 +382,47 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
               Text('$score점', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: AppColors.primary)),
             ],
           ),
+          const SizedBox(height: 12),
+          if (isProfileSelected)
+            Text(
+              '나의 투자성향: $profileLabel',
+              style: const TextStyle(fontSize: 13, color: AppColors.textDark, fontWeight: FontWeight.w700),
+            )
+          else
+            const Text(
+              '투자성향 테스트를 완료하면 나에게 맞는 맞춤형 매력지수를 확인할 수 있습니다.',
+              style: TextStyle(fontSize: 13, color: AppColors.textGray, height: 1.4),
+            ),
+          if (grade != null || reason != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              [
+                if (grade != null) grade,
+                if (reason != null && reason.isNotEmpty) reason,
+              ].join(' · '),
+              style: TextStyle(fontSize: 13, color: AppColors.textDark.withOpacity(0.7), height: 1.4),
+            ),
+          ],
+          if (attractiveness.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildProfileScores(attractiveness),
+          ],
+          if (notice != null && notice.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.white.withOpacity(0.8),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
+              ),
+              child: Text(
+                notice,
+                style: const TextStyle(fontSize: 12, color: AppColors.textGray, height: 1.4),
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           const Divider(color: AppColors.primary, thickness: 0.5),
           const SizedBox(height: 20),
@@ -423,6 +474,57 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
   }
 
   // [섹션 4] 청약 경쟁률 (탭 토글 및 수량)
+  Widget _buildProfileScores(Map<String, dynamic> attractiveness) {
+    final items = [
+      {'label': '공격형', 'data': attractiveness['aggressive']},
+      {'label': '중립형', 'data': attractiveness['balanced']},
+      {'label': '안정형', 'data': attractiveness['conservative']},
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('다른 기준으로 보기', style: TextStyle(fontSize: 13, color: AppColors.textGray, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: items.map((item) {
+            final data = item['data'] as Map<String, dynamic>?;
+            final rawScore = data?['score'];
+            final score = rawScore == null ? '-' : '${double.tryParse(rawScore.toString())?.round() ?? rawScore}점';
+            final grade = data?['grade']?.toString();
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.white.withOpacity(0.8),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
+              ),
+              child: Text(
+                grade == null ? '${item['label']} $score' : '${item['label']} $score / $grade',
+                style: const TextStyle(fontSize: 12, color: AppColors.textDark, fontWeight: FontWeight.w700),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  String? _profileLabel(String? profile) {
+    switch (profile) {
+      case 'aggressive':
+        return '공격형';
+      case 'balanced':
+        return '중립형';
+      case 'conservative':
+        return '안정형';
+      default:
+        return null;
+    }
+  }
+
   Widget _buildCompetitionSection(Map<String, dynamic> competition) {
     final tabKey = _isEqualTab ? 'equalAllocation' : 'proportionalAllocation';
     final tabData = competition.isNotEmpty ? (competition[tabKey] ?? {}) : {};
