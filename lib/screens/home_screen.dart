@@ -115,7 +115,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ? _homeData!['trendingIpos'][0]
                 : null;
     final trendingIpos = _homeData?['trendingIpos'] ?? [];
-    final attractivenessItems = _homeData?['attractiveness']?['items'] ?? [];
+    final attractivenessItems = _sortedAttractivenessItems(_homeData?['attractiveness']?['items'] ?? []);
     final userType = AuthManager.instance.user?.investmentType ?? '#분석대기중';
     final badgeColors = _getBadgeColors(userType);
 
@@ -387,8 +387,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   else
                     Builder(builder: (context) {
                       final int totalAvailable =
-                          (attractivenessItems.length as int) < _attractMaxCount
-                              ? attractivenessItems.length as int
+                          attractivenessItems.length < _attractMaxCount
+                              ? attractivenessItems.length
                               : _attractMaxCount;
                       final int shownCount = _attractVisibleCount < totalAvailable
                           ? _attractVisibleCount
@@ -500,6 +500,44 @@ class _HomeScreenState extends State<HomeScreen> {
     final parts = dateStr.split('-');
     if (parts.length < 3) return dateStr;
     return '${parts[1]}.${parts[2]}';
+  }
+
+  List<dynamic> _sortedAttractivenessItems(dynamic rawItems) {
+    final items = List<dynamic>.from(rawItems as List? ?? []);
+    final filterKey = _filterKeys[_selectedFilterIndex];
+
+    if (filterKey == 'recentGrowth') {
+      items.sort((a, b) => _compareDateDesc(
+            _parseItemDate(a, 'listingDate'),
+            _parseItemDate(b, 'listingDate'),
+          ));
+    } else if (filterKey == 'subscriptionUpcoming') {
+      items.sort((a, b) => _compareDateAsc(
+            _parseItemDate(a, 'subscriptionStartDate') ?? _parseItemDate(a, 'subscriptionEndDate'),
+            _parseItemDate(b, 'subscriptionStartDate') ?? _parseItemDate(b, 'subscriptionEndDate'),
+          ));
+    }
+
+    return items;
+  }
+
+  DateTime? _parseItemDate(dynamic item, String key) {
+    if (item is! Map || item[key] == null) return null;
+    return DateTime.tryParse(item[key].toString());
+  }
+
+  int _compareDateAsc(DateTime? a, DateTime? b) {
+    if (a == null && b == null) return 0;
+    if (a == null) return 1;
+    if (b == null) return -1;
+    return a.compareTo(b);
+  }
+
+  int _compareDateDesc(DateTime? a, DateTime? b) {
+    if (a == null && b == null) return 0;
+    if (a == null) return 1;
+    if (b == null) return -1;
+    return b.compareTo(a);
   }
 
   Widget _buildStatusBadge(String status) {
