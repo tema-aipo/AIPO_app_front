@@ -130,39 +130,68 @@ class CalendarScreenState extends State<CalendarScreen> {
 
       final Map<String, List<CalendarEvent>> newMap = {};
 
+      void mergeCells(List<dynamic> cells) {
+        for (var cell in cells) {
+          final String date = cell['date']; // YYYY-MM-DD
+          final List<dynamic> items = cell['items'] ?? [];
+
+          for (var item in items) {
+            final String typeStr = item['scheduleType'] ?? '';
+
+            EventType? type;
+            if (typeStr.contains('DEMAND_FORECAST')) {
+              type = EventType.demandForecast;
+            } else if (typeStr.contains('SUBSCRIPTION')) {
+              type = EventType.subscription;
+            } else if (typeStr.contains('REFUND')) {
+              type = EventType.refund;
+            } else if (typeStr.contains('LISTING')) {
+              type = EventType.listing;
+            }
+
+            if (type != null) {
+              final String ipoId = item['ipoId'].toString();
+              final event = CalendarEvent(
+                ipoId: ipoId,
+                name: item['companyName'] ?? '',
+                type: _favoriteIpoIds.contains(ipoId) ? EventType.favorite : type,
+                score: null,
+                leadManager: null,
+              );
+
+              final existing = newMap[date] ??= [];
+              final key = '${event.ipoId}_${event.type}';
+              if (!existing.any((e) => '${e.ipoId}_${e.type}' == key)) {
+                existing.add(event);
+              }
+            }
+          }
+        }
+      }
+
       // 1. 달력 칸 정보(calendarCells) 파싱
-      final List<dynamic> cells = rawData['calendarCells'] ?? [];
-      for (var cell in cells) {
-        final String date = cell['date']; // YYYY-MM-DD
-        final List<dynamic> items = cell['items'] ?? [];
-        
-        for (var item in items) {
-          final String typeStr = item['scheduleType'] ?? '';
-          
-          EventType? type;
-          if (typeStr.contains('DEMAND_FORECAST')) {
-            type = EventType.demandForecast;
-          } else if (typeStr.contains('SUBSCRIPTION')) {
-            type = EventType.subscription;
-          } else if (typeStr.contains('REFUND')) {
-            type = EventType.refund;
-          } else if (typeStr.contains('LISTING')) {
-            type = EventType.listing;
+      mergeCells(rawData['calendarCells'] ?? []);
+
+      // 1-1. 표시 grid에 걸친 이전/다음 달의 cells도 병렬로 가져와 머지
+      final overflowMonths = <String>{};
+      for (final c in _generateMonthCells()) {
+        if (!c.isCurrentMonth) {
+          overflowMonths.add(
+            "${c.date.year}-${c.date.month.toString().padLeft(2, '0')}",
+          );
+        }
+      }
+      if (overflowMonths.isNotEmpty) {
+        final extras = await Future.wait(overflowMonths.map((m) async {
+          try {
+            final extra = await _ipoService.getCalendarData(m);
+            return (extra['calendarCells'] as List<dynamic>?) ?? const [];
+          } catch (_) {
+            return const <dynamic>[];
           }
-          
-          if (type != null) {
-            final String ipoId = item['ipoId'].toString();
-            final event = CalendarEvent(
-              ipoId: ipoId,
-              name: item['companyName'] ?? '',
-              type: _favoriteIpoIds.contains(ipoId) ? EventType.favorite : type,
-              score: null,
-              leadManager: null,
-            );
-            
-            if (newMap[date] == null) newMap[date] = [];
-            newMap[date]!.add(event);
-          }
+        }));
+        for (final cells in extras) {
+          mergeCells(cells);
         }
       }
       
@@ -435,8 +464,17 @@ class CalendarScreenState extends State<CalendarScreen> {
 
           return GestureDetector(
             onTap: () {
-              setState(() => _selectedDate = cell.date);
-              _fetchCalendarData(targetSelectedDate: cell.date, showLoading: false);
+              final bool jumpToOtherMonth = !cell.isCurrentMonth;
+              setState(() {
+                if (jumpToOtherMonth) {
+                  _currentDate = DateTime(cell.date.year, cell.date.month, 1);
+                }
+                _selectedDate = cell.date;
+              });
+              _fetchCalendarData(
+                targetSelectedDate: cell.date,
+                showLoading: jumpToOtherMonth,
+              );
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 final ctx = _taskListKey.currentContext;
                 if (ctx != null) {
@@ -587,7 +625,7 @@ class CalendarScreenState extends State<CalendarScreen> {
           children: [
             // 좌측: 점수 + 상태뱃지
             SizedBox(
-              width: 72,
+              width: 80,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -595,7 +633,7 @@ class CalendarScreenState extends State<CalendarScreen> {
                     '• $score점',
                     style: const TextStyle(
                       color: AppColors.primary,
-                      fontSize: 15,
+                      fontSize: 18,
                       fontWeight: FontWeight.w900,
                     ),
                   ),

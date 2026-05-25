@@ -1,7 +1,29 @@
 {
   "permissions": {
     "allow": [
-      "Read(//c/Users/baeki/AIPO_BE/**)"
+      "Read(//c/Users/baeki/AIPO_BE/**)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/tema-aipo/AIPO_BE/main/src/main/java/com/aipo/backend/domain/ipo/service/IpoService.java\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/tema-aipo/AIPO_BE/main/src/main/java/com/aipo/backend/domain/home/dto/AttractivenessItem.java\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/tema-aipo/AIPO_BE/main/src/main/java/com/aipo/backend/domain/ipo/service/IpoStockViewMapper.java\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/tema-aipo/AIPO_BE/main/src/main/java/com/aipo/backend/domain/ipo/repository/IpoStockRepository.java\")",
+      "Bash(curl -s \"https://api.github.com/repos/tema-aipo/AIPO_BE/contents/src/main/java/com/aipo/backend/domain/ipo/repository\")",
+      "Bash(python3 -c \"import sys,json; [print\\(f['name']\\) for f in json.load\\(sys.stdin\\)]\")",
+      "Bash(curl -s \"https://api.github.com/repos/tema-aipo/AIPO_BE/git/trees/main?recursive=1\")",
+      "Bash(python3 -c \"import sys,json; [print\\(t['path']\\) for t in json.load\\(sys.stdin\\)['tree'] if 'ViewLog' in t['path'] or 'view_log' in t['path']]\")",
+      "Bash(curl -s \"https://api.github.com/repos/tema-aipo/AIPO_BE/git/trees/main?recursive=1\" -o /tmp/tree.json)",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s \"https://api.github.com/repos/tema-aipo/AIPO_BE/git/trees/main?recursive=1\" -o /tmp/tree.json; head -c 500 /tmp/tree.json)",
+      "Read(//tmp/**)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/tema-aipo/AIPO_BE/main/src/main/java/com/aipo/backend/domain/ipo/entity/IpoViewLog.java\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/tema-aipo/AIPO_BE/main/src/main/java/com/aipo/backend/domain/ipo/repository/IpoViewLogRepository.java\")",
+      "Bash(curl -s \"https://api.github.com/search/code?q=repo:tema-aipo/AIPO_BE+IpoViewLogRepository\" -H \"Accept: application/vnd.github+json\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('total_count'\\)\\); [print\\(i['path']\\) for i in d.get\\('items',[]\\)]\")",
+      "Bash(curl -s \"https://api.github.com/search/code?q=repo:tema-aipo/AIPO_BE+IpoViewLogRepository\" -H \"Accept: application/vnd.github+json\" -o /tmp/search.json)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/tema-aipo/AIPO_BE/main/src/main/java/com/aipo/backend/domain/home/service/HomeService.java\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/tema-aipo/AIPO_BE/main/src/main/java/com/aipo/backend/domain/ipo/controller/IpoController.java\")",
+      "Bash(gh repo *)",
+      "PowerShell(gh repo view tema-aipo/AIPO_BE --json name,description,defaultBranchRef,isPrivate)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

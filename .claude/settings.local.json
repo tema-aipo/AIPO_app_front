@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Read(//c/Users/baeki/AIPO_BE/src/test/java/com/aipo/backend/domain/user/controller/**)",
-      "Read(//c/Users/baeki/AIPO_BE/src/main/java/com/aipo/backend/domain/ipo/dto/**)"
+      "Read(//c/Users/baeki/AIPO_BE/src/main/java/com/aipo/backend/domain/ipo/dto/**)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(curl -sL https://raw.githubusercontent.com/tema-aipo/AIPO_BE/main/src/main/java/com/aipo/backend/domain/ipo/entity/IpoStock.java)",
+      "PowerShell(flutter analyze lib/screens/home_screen.dart 2>&1)",
+      "Bash(gh api *)",
+      "PowerShell(gh api repos/tema-aipo/AIPO_BE/git/trees/main?recursive=1 --jq '.tree[] | select\\(.path | test\\(\\\\\"home|attractive|Home|Attractive\\\\\"\\)\\) | .path')",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }

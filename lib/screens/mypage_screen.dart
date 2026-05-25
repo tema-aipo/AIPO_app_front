@@ -619,7 +619,7 @@ class MyPageScreenState extends State<MyPageScreen> {
           children: [
             // 좌측: 점수 + 상태뱃지
             SizedBox(
-              width: 72,
+              width: 80,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -627,7 +627,7 @@ class MyPageScreenState extends State<MyPageScreen> {
                     '• $score점',
                     style: const TextStyle(
                       color: AppColors.primary,
-                      fontSize: 15,
+                      fontSize: 18,
                       fontWeight: FontWeight.w900,
                     ),
                   ),

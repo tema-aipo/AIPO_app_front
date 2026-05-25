@@ -336,9 +336,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 24),
                   
                   // Section C: 공모주 매력지수
-                  Text('공모주 매력지수', style: AppTextStyles.h3.copyWith(fontSize: 18)),
-                  const SizedBox(height: 16),
-                  
                   // Filters Row
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
@@ -590,7 +587,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             // 좌측: 점수 + 상태뱃지
             SizedBox(
-              width: 72,
+              width: 80,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -598,7 +595,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     '• $score점',
                     style: const TextStyle(
                       color: AppColors.primary,
-                      fontSize: 15,
+                      fontSize: 18,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
