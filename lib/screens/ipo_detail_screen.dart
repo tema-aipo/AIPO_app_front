@@ -37,10 +37,10 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
       setState(() {
         _detailData = data;
         _isFavorite = data['summary']?['isFavorite'] ?? false;
-        
+
         final defaultTab = data['subscriptionCompetition']?['defaultTab'];
         _isEqualTab = defaultTab != 'PROPORTIONAL';
-        
+
         _isLoading = false;
       });
     } catch (e) {
@@ -56,11 +56,12 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
   Future<void> _toggleFavorite() async {
     final bool newState = !_isFavorite;
     setState(() => _isFavorite = newState);
-    
+
     // 알림 메시지 정의
-    final String companyName = _detailData?['summary']?['companyName'] ?? widget.ipoName;
-    final String snackMessage = newState 
-        ? '$companyName가 관심 공모주에 등록되었습니다.' 
+    final String companyName =
+        _detailData?['summary']?['companyName'] ?? widget.ipoName;
+    final String snackMessage = newState
+        ? '$companyName가 관심 공모주에 등록되었습니다.'
         : '$companyName가 관심 공모주에서 해제되었습니다.';
 
     try {
@@ -102,7 +103,7 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
     final num? number = num.tryParse(val.toString());
     if (number == null) return val.toString();
     return number.toStringAsFixed(0).replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
   }
 
   // 헬퍼: 날짜 포맷팅 (예: '2026-04-08' -> '2026.04.08')
@@ -119,13 +120,14 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
 
   // 헬퍼: 날짜 기간 포맷팅 (예: '2026.04.08 ~ 04.09')
   String _formatDateRange(String? startStr, String? endStr) {
-    if ((startStr == null || startStr.isEmpty) && (endStr == null || endStr.isEmpty)) return '-';
+    if ((startStr == null || startStr.isEmpty) &&
+        (endStr == null || endStr.isEmpty)) return '-';
     if (startStr == null || startStr.isEmpty) return _formatDateShort(endStr);
     if (endStr == null || endStr.isEmpty) return _formatDateShort(startStr);
-    
+
     final startParts = startStr.split('-');
     final endParts = endStr.split('-');
-    
+
     if (startParts.length >= 3 && endParts.length >= 3) {
       final startYear = startParts[0];
       final endYear = endParts[0];
@@ -133,27 +135,29 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
       final startDay = int.parse(startParts[2]).toString().padLeft(2, '0');
       final endMonth = int.parse(endParts[1]).toString().padLeft(2, '0');
       final endDay = int.parse(endParts[2]).toString().padLeft(2, '0');
-      
+
       if (startYear == endYear) {
         return '$startYear.$startMonth.$startDay ~ $endMonth.$endDay';
       }
     }
-    
+
     return '${_formatDateShort(startStr)} ~ ${_formatDateShort(endStr)}';
   }
 
   // 헬퍼: 기관수요예측 데이터가 완전히 비었는지 감지
   bool _isForecastEmpty(Map<String, dynamic> forecast) {
-    return forecast.isEmpty || 
+    return forecast.isEmpty ||
         (forecast['institutionalCompetitionRate'] == null &&
-         forecast['participatingInstitutionCount'] == null &&
-         forecast['lockupRate'] == null);
+            forecast['participatingInstitutionCount'] == null &&
+            forecast['lockupRate'] == null);
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator(color: AppColors.primary)));
+      return const Scaffold(
+          body: Center(
+              child: CircularProgressIndicator(color: AppColors.primary)));
     }
 
     if (_detailData == null) {
@@ -175,15 +179,12 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
         backgroundColor: AppColors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textDark), 
-          onPressed: () => Navigator.pop(context)
-        ),
+            icon: const Icon(Icons.arrow_back, color: AppColors.textDark),
+            onPressed: () => Navigator.pop(context)),
         actions: [
           IconButton(
-            icon: Icon(
-              _isFavorite ? Icons.favorite : Icons.favorite_border, 
-              color: _isFavorite ? AppColors.primaryRed : AppColors.textGray
-            ),
+            icon: Icon(_isFavorite ? Icons.favorite : Icons.favorite_border,
+                color: _isFavorite ? AppColors.primaryRed : AppColors.textGray),
             onPressed: _toggleFavorite,
           ),
           const SizedBox(width: 8),
@@ -199,12 +200,12 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
               child: Column(
                 children: [
                   Container(
-                    width: 64, height: 64,
+                    width: 64,
+                    height: 64,
                     decoration: const BoxDecoration(
-                      color: AppColors.primary, 
-                      shape: BoxShape.circle
-                    ),
-                    child: const Icon(Icons.diamond_outlined, color: Colors.white, size: 32),
+                        color: AppColors.primary, shape: BoxShape.circle),
+                    child: const Icon(Icons.diamond_outlined,
+                        color: Colors.white, size: 32),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -213,20 +214,25 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
                     children: [
                       Flexible(
                         child: Text(
-                          summary['companyName'] ?? widget.ipoName, 
-                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.textDark),
+                          summary['companyName'] ?? widget.ipoName,
+                          style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.textDark),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: AppColors.bgLightBlue,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          _getMarketTypeBadgeLabel(summary['marketType']) ?? '데이터 없음',
+                          _getMarketTypeBadgeLabel(summary['marketType']) ??
+                              '데이터 없음',
                           style: const TextStyle(
                             color: AppColors.primary,
                             fontSize: 12,
@@ -238,8 +244,9 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    summary['oneLineDescription'] ?? '정보 수집 중입니다.', 
-                    style: const TextStyle(fontSize: 14, color: AppColors.textGray, height: 1.4),
+                    summary['oneLineDescription'] ?? '정보 수집 중입니다.',
+                    style: const TextStyle(
+                        fontSize: 14, color: AppColors.textGray, height: 1.4),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -260,13 +267,41 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
               _buildEmptyDataCard()
             else
               _buildInfoCard([
-                _buildInfoRow('단순기관 경쟁률', forecast['institutionalCompetitionRate'] != null ? '${_formatNumber(forecast['institutionalCompetitionRate'])}:1' : '-'),
-                _buildInfoRow('수요예측 참여기관수', forecast['participatingInstitutionCount'] != null ? '${_formatNumber(forecast['participatingInstitutionCount'])}곳' : '-'),
-                _buildInfoRow('공모가 상단이상 경쟁률', forecast['aboveUpperPriceCompetitionRate'] != null ? '${_formatNumber(forecast['aboveUpperPriceCompetitionRate'])}:1' : '-'),
-                _buildInfoRow('공모가 상단이상 참여기관수', forecast['aboveUpperPriceInstitutionCount'] != null ? '${_formatNumber(forecast['aboveUpperPriceInstitutionCount'])}곳' : '-'),
-                _buildInfoRow('의무보유확약 경쟁률', forecast['lockupCompetitionRate'] != null ? '${_formatNumber(forecast['lockupCompetitionRate'])}:1' : '-'),
-                _buildInfoRow('의무보유확약 기관수', forecast['lockupInstitutionCount'] != null ? '${_formatNumber(forecast['lockupInstitutionCount'])}곳' : '-'),
-                _buildInfoRow('의무보유확약 비율', forecast['lockupRate'] != null ? '${forecast['lockupRate']}%' : '-'),
+                _buildInfoRow(
+                    '단순기관 경쟁률',
+                    forecast['institutionalCompetitionRate'] != null
+                        ? '${_formatNumber(forecast['institutionalCompetitionRate'])}:1'
+                        : '-'),
+                _buildInfoRow(
+                    '수요예측 참여기관수',
+                    forecast['participatingInstitutionCount'] != null
+                        ? '${_formatNumber(forecast['participatingInstitutionCount'])}곳'
+                        : '-'),
+                _buildInfoRow(
+                    '공모가 상단이상 경쟁률',
+                    forecast['aboveUpperPriceCompetitionRate'] != null
+                        ? '${_formatNumber(forecast['aboveUpperPriceCompetitionRate'])}:1'
+                        : '-'),
+                _buildInfoRow(
+                    '공모가 상단이상 참여기관수',
+                    forecast['aboveUpperPriceInstitutionCount'] != null
+                        ? '${_formatNumber(forecast['aboveUpperPriceInstitutionCount'])}곳'
+                        : '-'),
+                _buildInfoRow(
+                    '의무보유확약 경쟁률',
+                    forecast['lockupCompetitionRate'] != null
+                        ? '${_formatNumber(forecast['lockupCompetitionRate'])}:1'
+                        : '-'),
+                _buildInfoRow(
+                    '의무보유확약 기관수',
+                    forecast['lockupInstitutionCount'] != null
+                        ? '${_formatNumber(forecast['lockupInstitutionCount'])}곳'
+                        : '-'),
+                _buildInfoRow(
+                    '의무보유확약 비율',
+                    forecast['lockupRate'] != null
+                        ? '${forecast['lockupRate']}%'
+                        : '-'),
               ]),
             const SizedBox(height: 32),
 
@@ -274,7 +309,8 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
             _buildCompetitionSection(competition),
 
             // [섹션 5] 청약 일정 (타임라인)
-            _buildTimelineSection(schedule, summary['companyName'] ?? widget.ipoName),
+            _buildTimelineSection(
+                schedule, summary['companyName'] ?? widget.ipoName),
 
             // [섹션 6] 청약증거금
             _buildDepositSection(depositInfos),
@@ -287,22 +323,26 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
   }
 
   Widget _buildSectionTitle(String title) {
-    return Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textDark));
+    return Text(title,
+        style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: AppColors.textDark));
   }
 
   // 요약 3열 위젯
   Widget _buildQuickStatsRow(Map<String, dynamic> summary) {
-    final String confirmedPrice = summary['confirmedOfferPrice'] != null 
-        ? '${_formatNumber(summary['confirmedOfferPrice'])}원' 
+    final String confirmedPrice = summary['confirmedOfferPrice'] != null
+        ? '${_formatNumber(summary['confirmedOfferPrice'])}원'
         : '-';
     final List? leadManagersList = summary['leadManagers'] as List?;
-    final String leadManager = (leadManagersList != null && leadManagersList.isNotEmpty)
-        ? leadManagersList.first.toString()
-        : '-';
+    final String leadManager =
+        (leadManagersList != null && leadManagersList.isNotEmpty)
+            ? leadManagersList.first.toString()
+            : '-';
     final String dateRange = _formatDateRange(
-      summary['subscriptionPeriod']?['startDate'], 
-      summary['subscriptionPeriod']?['endDate']
-    );
+        summary['subscriptionPeriod']?['startDate'],
+        summary['subscriptionPeriod']?['endDate']);
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -316,9 +356,17 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
           Expanded(
             child: Column(
               children: [
-                const Text('확정공모가', style: TextStyle(color: AppColors.textGray, fontSize: 12, fontWeight: FontWeight.w500)),
+                const Text('확정공모가',
+                    style: TextStyle(
+                        color: AppColors.textGray,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500)),
                 const SizedBox(height: 6),
-                Text(confirmedPrice, style: const TextStyle(color: AppColors.textDark, fontSize: 14, fontWeight: FontWeight.bold)),
+                Text(confirmedPrice,
+                    style: const TextStyle(
+                        color: AppColors.textDark,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -326,9 +374,19 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
           Expanded(
             child: Column(
               children: [
-                const Text('주관사', style: TextStyle(color: AppColors.textGray, fontSize: 12, fontWeight: FontWeight.w500)),
+                const Text('주관사',
+                    style: TextStyle(
+                        color: AppColors.textGray,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500)),
                 const SizedBox(height: 6),
-                Text(leadManager, style: const TextStyle(color: AppColors.textDark, fontSize: 14, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(leadManager,
+                    style: const TextStyle(
+                        color: AppColors.textDark,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
               ],
             ),
           ),
@@ -336,11 +394,18 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
           Expanded(
             child: Column(
               children: [
-                const Text('청약일', style: TextStyle(color: AppColors.textGray, fontSize: 12, fontWeight: FontWeight.w500)),
+                const Text('청약일',
+                    style: TextStyle(
+                        color: AppColors.textGray,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500)),
                 const SizedBox(height: 6),
                 Text(
-                  dateRange, 
-                  style: const TextStyle(color: AppColors.textDark, fontSize: 12, fontWeight: FontWeight.bold),
+                  dateRange,
+                  style: const TextStyle(
+                      color: AppColors.textDark,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -352,12 +417,17 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
   }
 
   // [섹션 2] AIPO 매력지수 (기존 완벽한 카드 그대로 사용)
-  Widget _buildScoreCard(Map<String, dynamic> attraction, Map<String, dynamic> attractiveness) {
+  Widget _buildScoreCard(
+      Map<String, dynamic> attraction, Map<String, dynamic> attractiveness) {
     final selectedProfile = attractiveness['selectedProfile']?.toString();
     final selected = attractiveness['selected'] as Map<String, dynamic>?;
     final defaultScore = attractiveness['default'] as Map<String, dynamic>?;
     final scoreData = selected ?? defaultScore;
-    final rawScore = scoreData?['score'] ?? attraction['totalScore'] ?? _detailData?['score'] ?? _detailData?['attractionScore'] ?? 0;
+    final rawScore = scoreData?['score'] ??
+        attraction['totalScore'] ??
+        _detailData?['score'] ??
+        _detailData?['attractionScore'] ??
+        0;
     final score = double.tryParse(rawScore.toString())?.round() ?? 0;
     final grade = scoreData?['grade']?.toString();
     final reason = scoreData?['reason']?.toString();
@@ -378,20 +448,32 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('AIPO 매력지수', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primary)),
-              Text('$score점', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: AppColors.primary)),
+              const Text('AIPO 매력지수',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary)),
+              Text('$score점',
+                  style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.primary)),
             ],
           ),
           const SizedBox(height: 12),
           if (isProfileSelected)
             Text(
               '나의 투자성향: $profileLabel',
-              style: const TextStyle(fontSize: 13, color: AppColors.textDark, fontWeight: FontWeight.w700),
+              style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textDark,
+                  fontWeight: FontWeight.w700),
             )
           else
             const Text(
               '투자성향 테스트를 완료하면 나에게 맞는 맞춤형 매력지수를 확인할 수 있습니다.',
-              style: TextStyle(fontSize: 13, color: AppColors.textGray, height: 1.4),
+              style: TextStyle(
+                  fontSize: 13, color: AppColors.textGray, height: 1.4),
             ),
           if (grade != null || reason != null) ...[
             const SizedBox(height: 10),
@@ -400,7 +482,10 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
                 if (grade != null) grade,
                 if (reason != null && reason.isNotEmpty) reason,
               ].join(' · '),
-              style: TextStyle(fontSize: 13, color: AppColors.textDark.withOpacity(0.7), height: 1.4),
+              style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textDark.withOpacity(0.7),
+                  height: 1.4),
             ),
           ],
           if (attractiveness.isNotEmpty) ...[
@@ -415,11 +500,13 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
               decoration: BoxDecoration(
                 color: AppColors.white.withOpacity(0.8),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
+                border:
+                    Border.all(color: AppColors.borderGray.withOpacity(0.5)),
               ),
               child: Text(
                 notice,
-                style: const TextStyle(fontSize: 12, color: AppColors.textGray, height: 1.4),
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textGray, height: 1.4),
               ),
             ),
           ],
@@ -447,7 +534,8 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
                   children: [
                     const Padding(
                       padding: EdgeInsets.only(top: 4),
-                      child: Icon(Icons.check_circle_outline, size: 16, color: AppColors.primary),
+                      child: Icon(Icons.check_circle_outline,
+                          size: 16, color: AppColors.primary),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -455,11 +543,20 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (title.isNotEmpty)
-                            Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textDark)),
+                            Text(title,
+                                style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.textDark)),
                           if (description.isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(top: 4),
-                              child: Text(description, style: TextStyle(fontSize: 13, color: AppColors.textDark.withOpacity(0.7), height: 1.4)),
+                              child: Text(description,
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      color:
+                                          AppColors.textDark.withOpacity(0.7),
+                                      height: 1.4)),
                             ),
                         ],
                       ),
@@ -484,7 +581,11 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('다른 기준으로 보기', style: TextStyle(fontSize: 13, color: AppColors.textGray, fontWeight: FontWeight.w700)),
+        const Text('다른 기준으로 보기',
+            style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textGray,
+                fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -492,18 +593,26 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
           children: items.map((item) {
             final data = item['data'] as Map<String, dynamic>?;
             final rawScore = data?['score'];
-            final score = rawScore == null ? '-' : '${double.tryParse(rawScore.toString())?.round() ?? rawScore}점';
+            final score = rawScore == null
+                ? '-'
+                : '${double.tryParse(rawScore.toString())?.round() ?? rawScore}점';
             final grade = data?['grade']?.toString();
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
                 color: AppColors.white.withOpacity(0.8),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
+                border:
+                    Border.all(color: AppColors.borderGray.withOpacity(0.5)),
               ),
               child: Text(
-                grade == null ? '${item['label']} $score' : '${item['label']} $score / $grade',
-                style: const TextStyle(fontSize: 12, color: AppColors.textDark, fontWeight: FontWeight.w700),
+                grade == null
+                    ? '${item['label']} $score'
+                    : '${item['label']} $score / $grade',
+                style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textDark,
+                    fontWeight: FontWeight.w700),
               ),
             );
           }).toList(),
@@ -530,7 +639,8 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
     final tabData = competition.isNotEmpty ? (competition[tabKey] ?? {}) : {};
     final quantity = tabData['expectedAllocationQuantity'];
     final compRate = tabData['competitionRate'];
-    final bool hasData = competition.isNotEmpty && (quantity != null || compRate != null);
+    final bool hasData =
+        competition.isNotEmpty && (quantity != null || compRate != null);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -565,15 +675,21 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             decoration: BoxDecoration(
-                              color: _isEqualTab ? AppColors.textDark : Colors.transparent,
+                              color: _isEqualTab
+                                  ? AppColors.textDark
+                                  : Colors.transparent,
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Center(
                               child: Text(
                                 '균등배정',
                                 style: TextStyle(
-                                  color: _isEqualTab ? Colors.white : AppColors.textGray,
-                                  fontWeight: _isEqualTab ? FontWeight.bold : FontWeight.w500,
+                                  color: _isEqualTab
+                                      ? Colors.white
+                                      : AppColors.textGray,
+                                  fontWeight: _isEqualTab
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
                                   fontSize: 13,
                                 ),
                               ),
@@ -587,15 +703,21 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             decoration: BoxDecoration(
-                              color: !_isEqualTab ? AppColors.textDark : Colors.transparent,
+                              color: !_isEqualTab
+                                  ? AppColors.textDark
+                                  : Colors.transparent,
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Center(
                               child: Text(
                                 '비례배정',
                                 style: TextStyle(
-                                  color: !_isEqualTab ? Colors.white : AppColors.textGray,
-                                  fontWeight: !_isEqualTab ? FontWeight.bold : FontWeight.w500,
+                                  color: !_isEqualTab
+                                      ? Colors.white
+                                      : AppColors.textGray,
+                                  fontWeight: !_isEqualTab
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
                                   fontSize: 13,
                                 ),
                               ),
@@ -607,29 +729,42 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // 예상 수량 수치 표기
                 Text(
                   _isEqualTab ? '예상 균등 배정 수량' : '예상 비례 배정 수량',
-                  style: const TextStyle(fontSize: 13, color: AppColors.textGray, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textGray,
+                      fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   quantity != null ? '$quantity주' : '-주',
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: AppColors.primary),
+                  style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.primary),
                 ),
                 const SizedBox(height: 16),
                 const Divider(color: AppColors.borderGray, thickness: 0.5),
                 const SizedBox(height: 16),
-                
+
                 // 통합 경쟁률 행
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('통합 경쟁률', style: TextStyle(fontSize: 14, color: AppColors.textGray, fontWeight: FontWeight.w500)),
+                    const Text('통합 경쟁률',
+                        style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textGray,
+                            fontWeight: FontWeight.w500)),
                     Text(
                       compRate != null ? '${_formatNumber(compRate)}:1' : '-',
-                      style: const TextStyle(fontSize: 14, color: AppColors.textDark, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textDark,
+                          fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
@@ -642,14 +777,17 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
   }
 
   // [섹션 5] 청약 일정 (타임라인)
-  Widget _buildTimelineSection(Map<String, dynamic> schedule, String companyName) {
+  Widget _buildTimelineSection(
+      Map<String, dynamic> schedule, String companyName) {
     final demandForecast = schedule['demandForecastPeriod'] ?? {};
     final subPeriod = schedule['subscriptionPeriod'] ?? {};
     final refundDate = schedule['refundDate'];
     final listingDate = schedule['listingDate'];
 
-    final String demandStr = _formatDateRange(demandForecast['startDate'], demandForecast['endDate']);
-    final String subStr = _formatDateRange(subPeriod['startDate'], subPeriod['endDate']);
+    final String demandStr = _formatDateRange(
+        demandForecast['startDate'], demandForecast['endDate']);
+    final String subStr =
+        _formatDateRange(subPeriod['startDate'], subPeriod['endDate']);
     final String refundStr = _formatDateShort(refundDate);
     final String listingStr = _formatDateShort(listingDate);
 
@@ -686,7 +824,8 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
     return Row(
       children: [
         Container(
-          width: 10, height: 10,
+          width: 10,
+          height: 10,
           decoration: const BoxDecoration(
             color: AppColors.primary,
             shape: BoxShape.circle,
@@ -716,82 +855,113 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
 
   // [섹션 6] 청약증거금 목록
   Widget _buildDepositSection(List<dynamic> depositInfos) {
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle('청약증거금'),
+        _buildSectionTitle('청약 증권사'),
         const SizedBox(height: 16),
         if (depositInfos.isEmpty)
           _buildEmptyDataCard()
         else
           ...depositInfos.map((item) {
             final String name = item['securitiesCompanyName'] ?? '-';
-            final double? amountValue = double.tryParse(item['amountForTenShares']?.toString() ?? '');
-            final String amountStr = amountValue != null 
-                ? '${_formatNumber(amountValue)}원' 
-                : '-원';
+            final allocatedShareCount = item['allocatedShareCount'];
+            final subscriptionLimitShareCount =
+                item['subscriptionLimitShareCount'];
+            final String? note = item['note']?.toString();
 
             return Container(
               margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 color: AppColors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
+                border:
+                    Border.all(color: AppColors.borderGray.withOpacity(0.5)),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 40, height: 40,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFFF9E6),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.account_balance,
-                      color: Color(0xFFF2C94C),
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      name,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDark,
-                      ),
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                  Row(
                     children: [
-                      const Text(
-                        '최소 10주',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textGray,
-                          fontWeight: FontWeight.w500,
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFFF9E6),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.account_balance,
+                          color: Color(0xFFF2C94C),
+                          size: 20,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        amountStr,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.textDark,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.textDark,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 16),
+                  _buildSubscriptionCompanyMetric('배정 수량', allocatedShareCount),
+                  const SizedBox(height: 10),
+                  _buildSubscriptionCompanyMetric(
+                      '청약 한도', subscriptionLimitShareCount),
+                  if (note != null && note.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    _buildSubscriptionCompanyMetric('비고', note),
+                  ],
                 ],
               ),
             );
           }),
         const SizedBox(height: 20), // 32 - 12 (last item margin)
+      ],
+    );
+  }
+
+  Widget _buildSubscriptionCompanyMetric(String label, dynamic value) {
+    final String valueText = value == null
+        ? '-'
+        : value is num
+            ? '${_formatNumber(value)}주'
+            : value.toString();
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 82,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textGray,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            valueText,
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.textDark,
+              fontWeight: FontWeight.w800,
+            ),
+            textAlign: TextAlign.right,
+          ),
+        ),
       ],
     );
   }
@@ -839,8 +1009,16 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontSize: 14, color: AppColors.textGray, fontWeight: FontWeight.w500)),
-          Text(value, style: const TextStyle(fontSize: 14, color: AppColors.textDark, fontWeight: FontWeight.bold)),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textGray,
+                  fontWeight: FontWeight.w500)),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textDark,
+                  fontWeight: FontWeight.bold)),
         ],
       ),
     );
