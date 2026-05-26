@@ -8,7 +8,8 @@
       "PowerShell(flutter analyze lib/screens/home_screen.dart 2>&1)",
       "Bash(gh api *)",
       "PowerShell(gh api repos/tema-aipo/AIPO_BE/git/trees/main?recursive=1 --jq '.tree[] | select\\(.path | test\\(\\\\\"home|attractive|Home|Attractive\\\\\"\\)\\) | .path')",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(flutter analyze *)"
     ]
   }
 }

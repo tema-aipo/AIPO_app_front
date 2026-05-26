@@ -40,9 +40,10 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
   Future<void> _initializeSession() async {
     // 세션을 미리 생성하지 않음 — 첫 메시지 전송 시 _handleSend()에서 lazy 생성
     // 추천 질문만 가져오기 위해 임시 세션 생성 후 즉시 삭제
+    String? tempSessionId;
     try {
       final sessionData = await _chatService.createSession(title: '새 대화');
-      final tempSessionId = sessionData['sessionId'].toString();
+      tempSessionId = sessionData['sessionId'].toString();
 
       final List<dynamic> rawQuestions = sessionData['recommendedQuestions'] ?? [];
       if (!mounted) return;
@@ -57,9 +58,6 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
 
       // 추천 질문 로드 후 애니메이션 시작
       _animationController.forward();
-
-      // 임시 세션 삭제 (빈 세션이 기록에 남지 않도록)
-      await _chatService.deleteSession(tempSessionId);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -67,6 +65,14 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
         _isLoadingRecommendations = false;
       });
       _animationController.forward();
+    } finally {
+      if (tempSessionId != null) {
+        try {
+          await _chatService.deleteSession(tempSessionId);
+        } catch (_) {
+          // Ignore delete failure silently
+        }
+      }
     }
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../theme/app_colors.dart';
 import '../services/ipo_service.dart';
+import '../models/auth_manager.dart';
 
 class IpoDetailScreen extends StatefulWidget {
   final String ipoId;
@@ -22,7 +23,6 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
   bool _isLoading = true;
   Map<String, dynamic>? _detailData;
   bool _isFavorite = false;
-  bool _isEqualTab = true; // true: 균등배정, false: 비례배정
 
   @override
   void initState() {
@@ -37,10 +37,6 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
       setState(() {
         _detailData = data;
         _isFavorite = data['summary']?['isFavorite'] ?? false;
-
-        final defaultTab = data['subscriptionCompetition']?['defaultTab'];
-        _isEqualTab = defaultTab != 'PROPORTIONAL';
-
         _isLoading = false;
       });
     } catch (e) {
@@ -99,16 +95,24 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
 
   // 헬퍼: 숫자 포맷팅 (예: 1250000 -> 1,250,000)
   String _formatNumber(dynamic val) {
-    if (val == null) return '-';
+    if (val == null) return '미정';
     final num? number = num.tryParse(val.toString());
     if (number == null) return val.toString();
     return number.toStringAsFixed(0).replaceAllMapped(
         RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
   }
 
+  String _formatDecimal(dynamic val, {int decimals = 2}) {
+    if (val == null) return '미정';
+    final num? number = num.tryParse(val.toString());
+    if (number == null) return val.toString();
+    return number.toStringAsFixed(decimals).replaceAllMapped(
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?=\.))'), (m) => '${m[1]},');
+  }
+
   // 헬퍼: 날짜 포맷팅 (예: '2026-04-08' -> '2026.04.08')
   String _formatDateShort(String? dateStr) {
-    if (dateStr == null || dateStr.isEmpty) return '-';
+    if (dateStr == null || dateStr.isEmpty) return '미정';
     final parts = dateStr.split('-');
     if (parts.length >= 3) {
       final month = int.parse(parts[1]).toString().padLeft(2, '0');
@@ -121,7 +125,7 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
   // 헬퍼: 날짜 기간 포맷팅 (예: '2026.04.08 ~ 04.09')
   String _formatDateRange(String? startStr, String? endStr) {
     if ((startStr == null || startStr.isEmpty) &&
-        (endStr == null || endStr.isEmpty)) return '-';
+        (endStr == null || endStr.isEmpty)) return '미정';
     if (startStr == null || startStr.isEmpty) return _formatDateShort(endStr);
     if (endStr == null || endStr.isEmpty) return _formatDateShort(startStr);
 
@@ -169,7 +173,6 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
     final attraction = data['attraction'] ?? {};
     final attractiveness = data['attractiveness'] ?? {};
     final forecast = data['demandForecast'] ?? {};
-    final competition = data['subscriptionCompetition'] ?? {};
     final schedule = data['schedule'] ?? {};
     final depositInfos = data['depositInfos'] as List? ?? [];
 
@@ -199,15 +202,6 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
             Center(
               child: Column(
                 children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: const BoxDecoration(
-                        color: AppColors.primary, shape: BoxShape.circle),
-                    child: const Icon(Icons.diamond_outlined,
-                        color: Colors.white, size: 32),
-                  ),
-                  const SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -232,7 +226,7 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
                         ),
                         child: Text(
                           _getMarketTypeBadgeLabel(summary['marketType']) ??
-                              '데이터 없음',
+                              '미정',
                           style: const TextStyle(
                             color: AppColors.primary,
                             fontSize: 12,
@@ -271,44 +265,41 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
                     '단순기관 경쟁률',
                     forecast['institutionalCompetitionRate'] != null
                         ? '${_formatNumber(forecast['institutionalCompetitionRate'])}:1'
-                        : '-'),
+                        : '미정'),
                 _buildInfoRow(
                     '수요예측 참여기관수',
                     forecast['participatingInstitutionCount'] != null
                         ? '${_formatNumber(forecast['participatingInstitutionCount'])}곳'
-                        : '-'),
+                        : '미정'),
                 _buildInfoRow(
-                    '공모가 상단이상 경쟁률',
+                    '공모가 상단이상 참여 비율',
                     forecast['aboveUpperPriceCompetitionRate'] != null
-                        ? '${_formatNumber(forecast['aboveUpperPriceCompetitionRate'])}:1'
-                        : '-'),
+                        ? '${_formatDecimal(forecast['aboveUpperPriceCompetitionRate'])}%'
+                        : '미정'),
                 _buildInfoRow(
                     '공모가 상단이상 참여기관수',
                     forecast['aboveUpperPriceInstitutionCount'] != null
                         ? '${_formatNumber(forecast['aboveUpperPriceInstitutionCount'])}곳'
-                        : '-'),
+                        : '미정'),
                 _buildInfoRow(
                     '의무보유확약 경쟁률',
                     forecast['lockupCompetitionRate'] != null
                         ? '${_formatNumber(forecast['lockupCompetitionRate'])}:1'
-                        : '-'),
+                        : '미정'),
                 _buildInfoRow(
                     '의무보유확약 기관수',
                     forecast['lockupInstitutionCount'] != null
                         ? '${_formatNumber(forecast['lockupInstitutionCount'])}곳'
-                        : '-'),
+                        : '미정'),
                 _buildInfoRow(
                     '의무보유확약 비율',
                     forecast['lockupRate'] != null
                         ? '${forecast['lockupRate']}%'
-                        : '-'),
+                        : '미정'),
               ]),
             const SizedBox(height: 32),
 
-            // [섹션 4] 청약 경쟁률 (탭 토글)
-            _buildCompetitionSection(competition),
-
-            // [섹션 5] 청약 일정 (타임라인)
+            // [섹션 4] 청약 일정 (타임라인)
             _buildTimelineSection(
                 schedule, summary['companyName'] ?? widget.ipoName),
 
@@ -334,12 +325,12 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
   Widget _buildQuickStatsRow(Map<String, dynamic> summary) {
     final String confirmedPrice = summary['confirmedOfferPrice'] != null
         ? '${_formatNumber(summary['confirmedOfferPrice'])}원'
-        : '-';
+        : '미정';
     final List? leadManagersList = summary['leadManagers'] as List?;
     final String leadManager =
         (leadManagersList != null && leadManagersList.isNotEmpty)
             ? leadManagersList.first.toString()
-            : '-';
+            : '미정';
     final String dateRange = _formatDateRange(
         summary['subscriptionPeriod']?['startDate'],
         summary['subscriptionPeriod']?['endDate']);
@@ -416,10 +407,105 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
     );
   }
 
+  Widget _buildInvestmentTypeBadge(String type) {
+    final clean = type.startsWith('#') ? type : '#$type';
+    final Color bg;
+    final Color text;
+    if (clean == '#공격형') {
+      bg = const Color(0xFFFFEAEA);
+      text = const Color(0xFFD32F2F);
+    } else if (clean == '#중립형') {
+      bg = const Color(0xFFE2F6EA);
+      text = const Color(0xFF107C41);
+    } else if (clean.replaceAll(' ', '') == '#분석대기중') {
+      bg = const Color(0xFFEEEEEE);
+      text = const Color(0xFF9E9E9E);
+    } else {
+      bg = AppColors.bgLightBlue;
+      text = AppColors.primary;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        clean,
+        style: TextStyle(
+          fontSize: 12,
+          color: text,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> _parseTopFactors(List reasons, {int top = 2}) {
+    final entries = <Map<String, dynamic>>[];
+    for (final r in reasons) {
+      final desc = (r['description'] ?? '') as String;
+      final title = (r['title'] ?? '') as String;
+      final match = RegExp(r'× ([\d.]+)%').firstMatch(desc);
+      if (match == null) continue;
+      final weight = double.tryParse(match.group(1)!) ?? 0;
+      final name = title.replaceAll(RegExp(r'\s*반영점수\s*\d+점'), '').trim();
+      entries.add({'name': name, 'weight': weight});
+    }
+    entries.sort(
+        (a, b) => (b['weight'] as double).compareTo(a['weight'] as double));
+    return entries.take(top).toList();
+  }
+
+  String _generateFactorComment(List reasons) {
+    final all = _parseTopFactors(reasons, top: reasons.length);
+    if (all.isEmpty) return '';
+
+    final topWeight = all[0]['weight'] as double;
+    final secondWeight = all.length > 1 ? all[1]['weight'] as double : 0.0;
+
+    final List<String> mainFactors;
+    final String suffix;
+
+    if (topWeight > secondWeight * 1.5) {
+      mainFactors = [all[0]['name'] as String];
+      suffix = ' 지표를 중심으로 반영한 점수입니다.';
+    } else {
+      final significant =
+          all.where((e) => (e['weight'] as double) >= 20).toList();
+      if (significant.length >= 3) {
+        mainFactors =
+            significant.take(3).map((e) => e['name'] as String).toList();
+        suffix = ' 지표를 균형있게 반영한 점수입니다.';
+      } else {
+        mainFactors = all.take(2).map((e) => e['name'] as String).toList();
+        suffix = ' 지표를 중심으로 반영한 점수입니다.';
+      }
+    }
+
+    return mainFactors.join(', ') + suffix;
+  }
+
+  Widget _buildFactorComment(List reasons) {
+    final comment = _generateFactorComment(reasons);
+    if (comment.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Text(
+        comment,
+        style: TextStyle(
+          fontSize: 13,
+          color: AppColors.textDark.withOpacity(0.65),
+          height: 1.5,
+        ),
+      ),
+    );
+  }
+
   // [섹션 2] AIPO 매력지수 (기존 완벽한 카드 그대로 사용)
   Widget _buildScoreCard(
       Map<String, dynamic> attraction, Map<String, dynamic> attractiveness) {
-    final selectedProfile = attractiveness['selectedProfile']?.toString();
     final selected = attractiveness['selected'] as Map<String, dynamic>?;
     final defaultScore = attractiveness['default'] as Map<String, dynamic>?;
     final scoreData = selected ?? defaultScore;
@@ -429,12 +515,10 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
         _detailData?['attractionScore'] ??
         0;
     final score = double.tryParse(rawScore.toString())?.round() ?? 0;
-    final grade = scoreData?['grade']?.toString();
-    final reason = scoreData?['reason']?.toString();
-    final profileLabel = _profileLabel(selectedProfile);
-    final isProfileSelected = profileLabel != null;
-    final notice = attractiveness['notice']?.toString();
     final List reasons = attraction['reasons'] as List? ?? [];
+    final rawType = AuthManager.instance.user?.investmentType ?? '';
+    final investmentType =
+        rawType.startsWith('#') ? rawType.substring(1) : rawType;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -460,57 +544,38 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
                       color: AppColors.primary)),
             ],
           ),
-          const SizedBox(height: 12),
-          if (isProfileSelected)
-            Text(
-              '나의 투자성향: $profileLabel',
-              style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textDark,
-                  fontWeight: FontWeight.w700),
-            )
-          else
-            const Text(
-              '투자성향 테스트를 완료하면 나에게 맞는 맞춤형 매력지수를 확인할 수 있습니다.',
-              style: TextStyle(
-                  fontSize: 13, color: AppColors.textGray, height: 1.4),
+          const SizedBox(height: 16),
+          if (investmentType.isNotEmpty) ...[
+            Row(
+              children: [
+                Text(
+                  '나의 투자성향 : ',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textDark.withOpacity(0.65),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                _buildInvestmentTypeBadge(investmentType),
+              ],
             ),
-          if (grade != null || reason != null) ...[
-            const SizedBox(height: 10),
-            Text(
-              [
-                if (grade != null) grade,
-                if (reason != null && reason.isNotEmpty) reason,
-              ].join(' · '),
-              style: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textDark.withOpacity(0.7),
-                  height: 1.4),
-            ),
+            const SizedBox(height: 8),
           ],
-          if (attractiveness.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _buildProfileScores(attractiveness),
-          ],
-          if (notice != null && notice.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.white.withOpacity(0.8),
-                borderRadius: BorderRadius.circular(12),
-                border:
-                    Border.all(color: AppColors.borderGray.withOpacity(0.5)),
-              ),
+          if (investmentType.replaceAll(' ', '') == '분석대기중')
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
               child: Text(
-                notice,
-                style: const TextStyle(
-                    fontSize: 12, color: AppColors.textGray, height: 1.4),
+                '투자성향검사를 진행하지 않아 가중치를 반영하지 않은 기본 점수입니다.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textDark.withOpacity(0.65),
+                  height: 1.5,
+                ),
               ),
-            ),
-          ],
-          const SizedBox(height: 20),
+            )
+          else if (reasons.isNotEmpty)
+            _buildFactorComment(reasons),
+          const SizedBox(height: 8),
           const Divider(color: AppColors.primary, thickness: 0.5),
           const SizedBox(height: 20),
           if (reasons.isEmpty)
@@ -570,213 +635,7 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
     );
   }
 
-  // [섹션 4] 청약 경쟁률 (탭 토글 및 수량)
-  Widget _buildProfileScores(Map<String, dynamic> attractiveness) {
-    final items = [
-      {'label': '공격형', 'data': attractiveness['aggressive']},
-      {'label': '중립형', 'data': attractiveness['balanced']},
-      {'label': '안정형', 'data': attractiveness['conservative']},
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('다른 기준으로 보기',
-            style: TextStyle(
-                fontSize: 13,
-                color: AppColors.textGray,
-                fontWeight: FontWeight.w700)),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: items.map((item) {
-            final data = item['data'] as Map<String, dynamic>?;
-            final rawScore = data?['score'];
-            final score = rawScore == null
-                ? '-'
-                : '${double.tryParse(rawScore.toString())?.round() ?? rawScore}점';
-            final grade = data?['grade']?.toString();
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.white.withOpacity(0.8),
-                borderRadius: BorderRadius.circular(12),
-                border:
-                    Border.all(color: AppColors.borderGray.withOpacity(0.5)),
-              ),
-              child: Text(
-                grade == null
-                    ? '${item['label']} $score'
-                    : '${item['label']} $score / $grade',
-                style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textDark,
-                    fontWeight: FontWeight.w700),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  String? _profileLabel(String? profile) {
-    switch (profile) {
-      case 'aggressive':
-        return '공격형';
-      case 'balanced':
-        return '중립형';
-      case 'conservative':
-        return '안정형';
-      default:
-        return null;
-    }
-  }
-
-  Widget _buildCompetitionSection(Map<String, dynamic> competition) {
-    final tabKey = _isEqualTab ? 'equalAllocation' : 'proportionalAllocation';
-    final tabData = competition.isNotEmpty ? (competition[tabKey] ?? {}) : {};
-    final quantity = tabData['expectedAllocationQuantity'];
-    final compRate = tabData['competitionRate'];
-    final bool hasData =
-        competition.isNotEmpty && (quantity != null || compRate != null);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionTitle('청약 경쟁률'),
-        const SizedBox(height: 16),
-        if (!hasData)
-          _buildEmptyDataCard()
-        else
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 탭 가로형 토글러
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.bgLightBlue.withOpacity(0.5),
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  padding: const EdgeInsets.all(4),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _isEqualTab = true),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            decoration: BoxDecoration(
-                              color: _isEqualTab
-                                  ? AppColors.textDark
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Center(
-                              child: Text(
-                                '균등배정',
-                                style: TextStyle(
-                                  color: _isEqualTab
-                                      ? Colors.white
-                                      : AppColors.textGray,
-                                  fontWeight: _isEqualTab
-                                      ? FontWeight.bold
-                                      : FontWeight.w500,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _isEqualTab = false),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            decoration: BoxDecoration(
-                              color: !_isEqualTab
-                                  ? AppColors.textDark
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Center(
-                              child: Text(
-                                '비례배정',
-                                style: TextStyle(
-                                  color: !_isEqualTab
-                                      ? Colors.white
-                                      : AppColors.textGray,
-                                  fontWeight: !_isEqualTab
-                                      ? FontWeight.bold
-                                      : FontWeight.w500,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // 예상 수량 수치 표기
-                Text(
-                  _isEqualTab ? '예상 균등 배정 수량' : '예상 비례 배정 수량',
-                  style: const TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textGray,
-                      fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  quantity != null ? '$quantity주' : '-주',
-                  style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.primary),
-                ),
-                const SizedBox(height: 16),
-                const Divider(color: AppColors.borderGray, thickness: 0.5),
-                const SizedBox(height: 16),
-
-                // 통합 경쟁률 행
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('통합 경쟁률',
-                        style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textGray,
-                            fontWeight: FontWeight.w500)),
-                    Text(
-                      compRate != null ? '${_formatNumber(compRate)}:1' : '-',
-                      style: const TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textDark,
-                          fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        const SizedBox(height: 32),
-      ],
-    );
-  }
-
-  // [섹션 5] 청약 일정 (타임라인)
+  // [섹션 4] 청약 일정 (타임라인)
   Widget _buildTimelineSection(
       Map<String, dynamic> schedule, String companyName) {
     final demandForecast = schedule['demandForecastPeriod'] ?? {};
@@ -853,7 +712,7 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
     );
   }
 
-  // [섹션 6] 청약증거금 목록
+  // [섹션 6] 증권사별 배정 수량 목록
   Widget _buildDepositSection(List<dynamic> depositInfos) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -864,7 +723,7 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
           _buildEmptyDataCard()
         else
           ...depositInfos.map((item) {
-            final String name = item['securitiesCompanyName'] ?? '-';
+            final String name = item['securitiesCompanyName'] ?? '미정';
             final allocatedShareCount = item['allocatedShareCount'];
             final subscriptionLimitShareCount =
                 item['subscriptionLimitShareCount'];
@@ -932,7 +791,7 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
 
   Widget _buildSubscriptionCompanyMetric(String label, dynamic value) {
     final String valueText = value == null
-        ? '-'
+        ? '미정'
         : value is num
             ? '${_formatNumber(value)}주'
             : value.toString();
@@ -979,7 +838,7 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
           Icon(Icons.info_outline, color: AppColors.textLightGray, size: 28),
           SizedBox(height: 8),
           Text(
-            '데이터가 없습니다',
+            '미정',
             style: TextStyle(
               color: AppColors.textGray,
               fontSize: 14,

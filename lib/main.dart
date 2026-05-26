@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/onboarding_screen.dart';
@@ -31,6 +32,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'AIPO',
       debugShowCheckedModeBanner: false,
+      scrollBehavior: const AppScrollBehavior(),
       theme: ThemeData(
         fontFamily: 'Pretendard',
         scaffoldBackgroundColor: Colors.white,
@@ -63,4 +65,14 @@ class MyApp extends StatelessWidget {
       ),
     );
   }
+}
+
+class AppScrollBehavior extends MaterialScrollBehavior {
+  const AppScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+      };
 }

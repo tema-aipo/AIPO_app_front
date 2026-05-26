@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import '../theme/app_colors.dart';
 import '../models/chat_message.dart';
 import '../services/chat_service.dart';
@@ -18,6 +19,59 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   int _feedbackState = 0; // 0: none, 1: like, -1: dislike
   bool _feedbackSubmitted = false;
   int? _selectedReason;
+
+  MarkdownStyleSheet _buildMarkdownStyle({
+    required Color textColor,
+    required double fontSize,
+    required FontWeight fontWeight,
+    double height = 1.4,
+  }) {
+    final baseTextStyle = TextStyle(
+      fontFamily: 'Pretendard',
+      fontSize: fontSize,
+      color: textColor,
+      height: height,
+    );
+    return MarkdownStyleSheet(
+      p: baseTextStyle.copyWith(fontWeight: fontWeight),
+      strong: baseTextStyle.copyWith(fontWeight: FontWeight.w800),
+      em: baseTextStyle.copyWith(fontStyle: FontStyle.italic),
+      h1: baseTextStyle.copyWith(fontSize: fontSize + 4, fontWeight: FontWeight.w800),
+      h2: baseTextStyle.copyWith(fontSize: fontSize + 2, fontWeight: FontWeight.w800),
+      h3: baseTextStyle.copyWith(fontSize: fontSize + 1, fontWeight: FontWeight.w800),
+      h4: baseTextStyle.copyWith(fontWeight: FontWeight.w800),
+      h5: baseTextStyle.copyWith(fontWeight: FontWeight.w800),
+      h6: baseTextStyle.copyWith(fontWeight: FontWeight.w800),
+      listBullet: baseTextStyle.copyWith(fontWeight: fontWeight),
+      listBulletPadding: const EdgeInsets.only(right: 8),
+      a: baseTextStyle.copyWith(
+        color: AppColors.primary,
+        fontWeight: FontWeight.w700,
+        decoration: TextDecoration.underline,
+        decorationColor: AppColors.primary,
+      ),
+      code: const TextStyle(
+        fontFamily: 'monospace',
+        fontSize: 13,
+        backgroundColor: Colors.transparent,
+      ),
+      blockquote: baseTextStyle.copyWith(
+        color: AppColors.textLightGray,
+        fontStyle: FontStyle.italic,
+      ),
+      blockquoteDecoration: BoxDecoration(
+        color: AppColors.bgGray,
+        border: const Border(
+          left: BorderSide(color: AppColors.borderGray, width: 4),
+        ),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      codeblockDecoration: BoxDecoration(
+        color: AppColors.bgGray,
+        borderRadius: BorderRadius.circular(8),
+      ),
+    );
+  }
 
   void _copyToClipboard() {
     String copyText = widget.message.text;
@@ -54,10 +108,10 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
             bottomRight: Radius.circular(4),
           ),
         ),
-        child: Text(
-          widget.message.text,
-          style: const TextStyle(
-            color: AppColors.textDark,
+        child: MarkdownBody(
+          data: widget.message.text,
+          styleSheet: _buildMarkdownStyle(
+            textColor: AppColors.textDark,
             fontSize: 15,
             fontWeight: FontWeight.w500,
             height: 1.4,
@@ -96,10 +150,10 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
               children: [
                 // Text Title
                 const SizedBox(height: 6),
-                Text(
-                  widget.message.text,
-                  style: const TextStyle(
-                    color: AppColors.textDark,
+                MarkdownBody(
+                  data: widget.message.text,
+                  styleSheet: _buildMarkdownStyle(
+                    textColor: AppColors.textDark,
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                     height: 1.4,
@@ -142,10 +196,10 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                 
                 if (widget.message.aiSecondaryText != null) ...[
                   const SizedBox(height: 16),
-                  Text(
-                    widget.message.aiSecondaryText!,
-                    style: const TextStyle(
-                      color: AppColors.textBody,
+                  MarkdownBody(
+                    data: widget.message.aiSecondaryText!,
+                    styleSheet: _buildMarkdownStyle(
+                      textColor: AppColors.textBody,
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
                       height: 1.6,

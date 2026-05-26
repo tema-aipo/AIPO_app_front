@@ -257,49 +257,6 @@ class _HomeSearchScreenState extends State<HomeSearchScreen> {
                 );
               }).toList(),
             ),
-          const SizedBox(height: 48),
-
-          // 실시간 인기 검색어 (백엔드 미구현)
-          const Text(
-            '실시간 인기 검색어',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textDark,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-            decoration: BoxDecoration(
-              color: AppColors.bgGray,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Column(
-              children: [
-                Icon(Icons.construction_outlined, color: AppColors.textLightGray, size: 36),
-                SizedBox(height: 12),
-                Text(
-                  '백엔드 연동 후 제공될 예정입니다',
-                  style: TextStyle(
-                    color: AppColors.textGray,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  '사용자들의 검색 데이터를 기반으로 인기 검색어를 제공합니다.',
-                  style: TextStyle(
-                    color: AppColors.textLightGray,
-                    fontSize: 12,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );

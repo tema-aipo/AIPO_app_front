@@ -225,9 +225,10 @@ class _ChatbotDrawerState extends State<ChatbotDrawer> {
 
   @override
   Widget build(BuildContext context) {
+    final activeSessions = _sessions.where((s) => s['lastMessagePreview'] != null).toList();
     final visibleSessions = (!widget.hasMessages && widget.currentSessionId != null)
-        ? _sessions.where((s) => s['sessionId'].toString() != widget.currentSessionId).toList()
-        : _sessions;
+        ? activeSessions.where((s) => s['sessionId'].toString() != widget.currentSessionId).toList()
+        : activeSessions;
     final pinnedSessions = visibleSessions.where((s) => s['pinned'] == true).toList();
     final recentSessions = visibleSessions.where((s) => s['pinned'] != true).toList();
 
