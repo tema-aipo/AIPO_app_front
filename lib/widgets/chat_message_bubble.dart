@@ -19,6 +19,117 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   int _feedbackState = 0; // 0: none, 1: like, -1: dislike
   bool _feedbackSubmitted = false;
   int? _selectedReason;
+  List<({String text, bool isTable})> _splitMarkdownSegments(String markdown) {
+    final lines = markdown.split('\n');
+    final result = <({String text, bool isTable})>[];
+    final buffer = StringBuffer();
+    bool inTable = false;
+
+    for (final line in lines) {
+      final isTableLine = line.trim().startsWith('|');
+      if (isTableLine != inTable) {
+        final block = buffer.toString().trim();
+        if (block.isNotEmpty) {
+          result.add((text: block, isTable: inTable));
+        }
+        buffer.clear();
+        inTable = isTableLine;
+      }
+      buffer.writeln(line);
+    }
+
+    final remaining = buffer.toString().trim();
+    if (remaining.isNotEmpty) {
+      result.add((text: remaining, isTable: inTable));
+    }
+
+    return result;
+  }
+
+  Widget _buildNativeTable(String tableMarkdown) {
+    final lines = tableMarkdown.trim().split('\n')
+        .where((l) => l.trim().isNotEmpty)
+        .toList();
+    if (lines.length < 3) return MarkdownBody(data: tableMarkdown);
+
+    List<String> parseRow(String line) => line
+        .split('|')
+        .map((c) => c.trim())
+        .where((c) => c.isNotEmpty)
+        .toList();
+
+    final headers = parseRow(lines[0]);
+    final colCount = headers.length;
+    final rows = lines.sublist(2).map((l) {
+      final cells = parseRow(l);
+      // 열 수 맞추기
+      while (cells.length < colCount) { cells.add(''); }
+      return cells.take(colCount).toList();
+    }).toList();
+
+    const cellPadding = EdgeInsets.symmetric(horizontal: 12, vertical: 8);
+    const headerStyle = TextStyle(
+      fontFamily: 'Pretendard',
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+      color: AppColors.textDark,
+    );
+    const bodyStyle = TextStyle(
+      fontFamily: 'Pretendard',
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+      color: AppColors.textDark,
+    );
+
+    TableRow makeRow(List<String> cells, TextStyle style, {Color? bg}) =>
+        TableRow(
+          decoration: bg != null ? BoxDecoration(color: bg) : null,
+          children: cells.map((c) => Padding(
+            padding: cellPadding,
+            child: Text(c, style: style),
+          )).toList(),
+        );
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Table(
+        defaultColumnWidth: const IntrinsicColumnWidth(),
+        border: TableBorder.all(color: AppColors.borderGray, width: 1),
+        children: [
+          makeRow(headers, headerStyle, bg: const Color(0xFFF0F4FF)),
+          ...rows.map((r) => makeRow(r, bodyStyle)),
+        ],
+      ),
+    );
+  }
+
+  static final _bracketRegex = RegExp(r'\[([^\[\]]+)\](?!\()');
+
+  String _preprocessHighlights(String text) =>
+      text.replaceAllMapped(_bracketRegex, (m) => '`${m[1]}`');
+
+  Widget _markdownBody(String data, MarkdownStyleSheet style) => MarkdownBody(
+        data: _preprocessHighlights(data),
+        styleSheet: style,
+      );
+
+  Widget _buildMarkdownContent(String data, MarkdownStyleSheet style) {
+    final segments = _splitMarkdownSegments(data);
+    if (segments.length == 1 && !segments.first.isTable) {
+      return _markdownBody(data, style);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final seg in segments)
+          if (seg.isTable)
+            _buildNativeTable(seg.text)
+          else if (seg.text.isNotEmpty)
+            _markdownBody(seg.text, style),
+      ],
+    );
+  }
 
   MarkdownStyleSheet _buildMarkdownStyle({
     required Color textColor,
@@ -44,16 +155,17 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
       h6: baseTextStyle.copyWith(fontWeight: FontWeight.w800),
       listBullet: baseTextStyle.copyWith(fontWeight: fontWeight),
       listBulletPadding: const EdgeInsets.only(right: 8),
+      listIndent: 20,
+      blockSpacing: 10,
       a: baseTextStyle.copyWith(
         color: AppColors.primary,
         fontWeight: FontWeight.w700,
         decoration: TextDecoration.underline,
         decorationColor: AppColors.primary,
       ),
-      code: const TextStyle(
-        fontFamily: 'monospace',
-        fontSize: 13,
-        backgroundColor: Colors.transparent,
+      code: baseTextStyle.copyWith(
+        fontWeight: FontWeight.w600,
+        backgroundColor: AppColors.primary.withOpacity(0.1),
       ),
       blockquote: baseTextStyle.copyWith(
         color: AppColors.textLightGray,
@@ -72,6 +184,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
       ),
     );
   }
+
 
   void _copyToClipboard() {
     String copyText = widget.message.text;
@@ -150,13 +263,13 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
               children: [
                 // Text Title
                 const SizedBox(height: 6),
-                MarkdownBody(
-                  data: widget.message.text,
-                  styleSheet: _buildMarkdownStyle(
+                _buildMarkdownContent(
+                  widget.message.text,
+                  _buildMarkdownStyle(
                     textColor: AppColors.textDark,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    height: 1.4,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    height: 1.6,
                   ),
                 ),
                 
@@ -196,9 +309,9 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                 
                 if (widget.message.aiSecondaryText != null) ...[
                   const SizedBox(height: 16),
-                  MarkdownBody(
-                    data: widget.message.aiSecondaryText!,
-                    styleSheet: _buildMarkdownStyle(
+                  _buildMarkdownContent(
+                    widget.message.aiSecondaryText!,
+                    _buildMarkdownStyle(
                       textColor: AppColors.textBody,
                       fontSize: 15,
                       fontWeight: FontWeight.w500,

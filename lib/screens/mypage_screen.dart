@@ -10,6 +10,7 @@ import '../models/auth_manager.dart';
 import '../services/user_service.dart';
 import '../services/ipo_service.dart';
 import '../services/auth_service.dart';
+import '../services/notification_service.dart';
 
 class MyPageScreen extends StatefulWidget {
   const MyPageScreen({super.key});
@@ -76,18 +77,32 @@ class MyPageScreenState extends State<MyPageScreen> {
       ]);
       final favs = results[0] as List<dynamic>;
       final notiSettings = results[1] as Map<String, dynamic>;
-        setState(() {
-          _favorites = favs;
-          for (var item in favs) {
-            final id = item['ipoId']?.toString() ?? '';
-            if (id.isNotEmpty && !_activeNotifications.containsKey(id)) {
-              _activeNotifications[id] = true;
-            }
+
+      final subAlarm = notiSettings['subscriptionScheduleNotificationEnabled'] ?? true;
+      final lstAlarm = notiSettings['listingDateNotificationEnabled'] ?? false;
+
+      // 백엔드 전역 알림 설정을 NotificationService에 미러링
+      // → 팝업/알림 목록 필터링에 즉시 반영됨
+      NotificationService.instance.updateGlobalSettings(
+        subscription: subAlarm as bool,
+        listing: lstAlarm as bool,
+      );
+
+      setState(() {
+        _favorites = favs;
+        for (var item in favs) {
+          final id = item['ipoId']?.toString() ?? '';
+          if (id.isNotEmpty) {
+            // NotificationService의 로컬 캐시에서 종목별 알림 설정 읽기
+            // (백엔드 API 준비 전까지는 SharedPreferences 기반)
+            _activeNotifications[id] =
+                NotificationService.instance.isIpoNotificationEnabled(id);
           }
-          _isSubscriptionAlarmOn = notiSettings['subscriptionScheduleNotificationEnabled'] ?? true;
-          _isListingAlarmOn = notiSettings['listingDateNotificationEnabled'] ?? false;
-          _isLoading = false;
-        });
+        }
+        _isSubscriptionAlarmOn = subAlarm;
+        _isListingAlarmOn = lstAlarm;
+        _isLoading = false;
+      });
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -175,9 +190,15 @@ class MyPageScreenState extends State<MyPageScreen> {
                   _buildAlarmRow('청약 일정 알림', '청약 시작일과 마감일에 알려드려요', _isSubscriptionAlarmOn, (val) {
                     setModalState(() => _isSubscriptionAlarmOn = val);
                     setState(() => _isSubscriptionAlarmOn = val);
+                    // NotificationService에 즉시 반영 → 팝업 필터링에 적용
+                    NotificationService.instance.updateGlobalSettings(
+                      subscription: _isSubscriptionAlarmOn,
+                      listing: _isListingAlarmOn,
+                    );
+                    // 백엔드 저장 (이미 연동 완료)
                     _userService.updateNotificationSettings(
-                      subscriptionAlarm: _isSubscriptionAlarmOn, 
-                      listingAlarm: _isListingAlarmOn
+                      subscriptionAlarm: _isSubscriptionAlarmOn,
+                      listingAlarm: _isListingAlarmOn,
                     ).catchError((_) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('알림 설정 저장 실패')));
@@ -188,9 +209,15 @@ class MyPageScreenState extends State<MyPageScreen> {
                   _buildAlarmRow('상장일 알림', '상장 당일 아침에 잊지 않게 알려드려요', _isListingAlarmOn, (val) {
                     setModalState(() => _isListingAlarmOn = val);
                     setState(() => _isListingAlarmOn = val);
+                    // NotificationService에 즉시 반영 → 팝업 필터링에 적용
+                    NotificationService.instance.updateGlobalSettings(
+                      subscription: _isSubscriptionAlarmOn,
+                      listing: _isListingAlarmOn,
+                    );
+                    // 백엔드 저장 (이미 연동 완료)
                     _userService.updateNotificationSettings(
-                      subscriptionAlarm: _isSubscriptionAlarmOn, 
-                      listingAlarm: _isListingAlarmOn
+                      subscriptionAlarm: _isSubscriptionAlarmOn,
+                      listingAlarm: _isListingAlarmOn,
                     ).catchError((_) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('알림 설정 저장 실패')));
@@ -530,13 +557,22 @@ class MyPageScreenState extends State<MyPageScreen> {
                   color: isNotificationOn ? const Color(0xFFF2C94C) : AppColors.textGray.withOpacity(0.5), 
                   size: 22
                 ),
-                onPressed: () {
-                  setState(() {
-                    _activeNotifications[ipoId] = !isNotificationOn;
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
+                onPressed: () async {
+                  final newValue = !isNotificationOn;
+                  final messenger = ScaffoldMessenger.of(context);
+                  setState(() => _activeNotifications[ipoId] = newValue);
+
+                  // NotificationService에 즉시 반영 (SharedPreferences 영속화)
+                  await NotificationService.instance
+                      .setIpoNotificationEnabled(ipoId, newValue);
+
+                  // [백엔드 연동 시] 아래 줄 추가:
+                  // await _userService.updateIpoNotificationSetting(
+                  //   ipoId: ipoId, enabled: newValue);
+
+                  messenger.showSnackBar(
                     SnackBar(
-                      content: Text(!isNotificationOn
+                      content: Text(newValue
                           ? '$ipoName의 청약 및 상장 알림이 활성화되었습니다.'
                           : '$ipoName의 청약 및 상장 알림이 비활성화되었습니다.'),
                       duration: const Duration(seconds: 2),

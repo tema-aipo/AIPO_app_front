@@ -177,7 +177,7 @@ class _SignupStep3ScreenState extends State<SignupStep3Screen> {
           mainColor = AppColors.primaryRed;
           break;
         case '중립형':
-          icon = Icons.enhanced_encryption_outlined;
+          icon = Icons.balance_outlined;
           mainColor = AppColors.primaryGreen;
           break;
         case '안정형':

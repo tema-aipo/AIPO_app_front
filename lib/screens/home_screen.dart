@@ -8,9 +8,12 @@ import '../services/ipo_service.dart';
 import '../services/user_service.dart';
 import '../services/notification_service.dart';
 import '../models/auth_manager.dart';
+import '../widgets/investment_type_guide_popup.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final VoidCallback? onGoToMyPage;
+
+  const HomeScreen({super.key, this.onGoToMyPage});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -180,22 +183,50 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          const Text(
+                            'AIPO',
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: badgeColors['bg'],
-                              borderRadius: BorderRadius.circular(16),
+                          GestureDetector(
+                            onTap: () => showDialog(
+                              context: context,
+                              builder: (_) => InvestmentTypeGuidePopup(
+                                onGoToMyPage: widget.onGoToMyPage,
+                              ),
                             ),
-                            child: Text(
-                              userType,
-                              style: TextStyle(
-                                color: badgeColors['text'],
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: badgeColors['bg'],
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    userType,
+                                    style: TextStyle(
+                                      color: badgeColors['text'],
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Icon(Icons.info_outline,
+                                      size: 13, color: badgeColors['text']),
+                                ],
                               ),
                             ),
                           ),
@@ -250,6 +281,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ],
                           ),
+                        ],
+                      ),
                         ],
                       ),
                       const SizedBox(height: 24),

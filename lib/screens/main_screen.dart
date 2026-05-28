@@ -26,7 +26,7 @@ class _MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _widgetOptions = <Widget>[
-      const HomeScreen(),
+      HomeScreen(onGoToMyPage: () => _onItemTapped(3)),
       CalendarScreen(key: _calendarKey),
       const ChatbotScreen(),
       MyPageScreen(key: _myPageKey),

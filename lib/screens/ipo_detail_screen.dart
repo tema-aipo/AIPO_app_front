@@ -494,10 +494,12 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
       padding: const EdgeInsets.only(bottom: 4),
       child: Text(
         comment,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          fontSize: 13,
+          fontSize: 11,
           color: AppColors.textDark.withOpacity(0.65),
-          height: 1.5,
+          height: 1.3,
         ),
       ),
     );

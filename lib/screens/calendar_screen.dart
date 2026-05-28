@@ -8,6 +8,7 @@ class CalendarEvent {
   final String ipoId;
   final String name;
   final EventType type;
+  final bool isFavorite;
   final int? score;
   final String? leadManager;
   final String? startDate; // YYYY-MM-DD
@@ -17,6 +18,7 @@ class CalendarEvent {
     required this.ipoId,
     required this.name,
     required this.type,
+    this.isFavorite = false,
     this.score,
     this.leadManager,
     this.startDate,
@@ -84,7 +86,12 @@ class CalendarScreenState extends State<CalendarScreen> {
   DateTime? _selectedDate;
   bool _isLoading = true;
 
-  final Set<EventType> _activeFilters = EventType.values.toSet();
+  final Set<EventType> _activeFilters = {
+    EventType.demandForecast,
+    EventType.subscription,
+    EventType.listing,
+    EventType.refund,
+  };
   Map<String, List<CalendarEvent>> _eventsMap = {};
   final Set<String> _favoriteIpoIds = {};
   final GlobalKey _taskListKey = GlobalKey();
@@ -158,7 +165,8 @@ class CalendarScreenState extends State<CalendarScreen> {
               final event = CalendarEvent(
                 ipoId: ipoId,
                 name: item['companyName'] ?? '',
-                type: _favoriteIpoIds.contains(ipoId) ? EventType.favorite : type,
+                type: type,
+                isFavorite: _favoriteIpoIds.contains(ipoId),
                 score: null,
                 leadManager: null,
               );
@@ -247,8 +255,8 @@ class CalendarScreenState extends State<CalendarScreen> {
               final int? scoreInt = scoreDouble?.toInt();
               final String ipoId = comp['ipoId'].toString();
 
-              final resolvedType = _favoriteIpoIds.contains(ipoId) ? EventType.favorite : type;
-              final lookupKey = '${ipoId}_${resolvedType.name}';
+              final isFavorite = _favoriteIpoIds.contains(ipoId);
+              final lookupKey = '${ipoId}_${type.name}';
               final dates = eventDatesMap[lookupKey] ?? [];
               final startDate = dates.isNotEmpty ? dates.first : null;
               final endDate = dates.length > 1 ? dates.last : null;
@@ -256,7 +264,8 @@ class CalendarScreenState extends State<CalendarScreen> {
               selectedEvents.add(CalendarEvent(
                 ipoId: ipoId,
                 name: comp['companyName'] ?? '',
-                type: resolvedType,
+                type: type,
+                isFavorite: isFavorite,
                 score: scoreInt,
                 leadManager: comp['securitiesCompanyName'],
                 startDate: startDate,
@@ -295,6 +304,18 @@ class CalendarScreenState extends State<CalendarScreen> {
     }
   }
 
+
+  List<CalendarEvent> _filterEvents(List<CalendarEvent> events) {
+    final favoriteOnly = _activeFilters.contains(EventType.favorite);
+    final typeFilters = _activeFilters.where((f) => f != EventType.favorite).toSet();
+    final onlyFavoriteFilter = favoriteOnly && typeFilters.isEmpty;
+    return events.where((e) {
+      if (onlyFavoriteFilter) return e.isFavorite;
+      if (!typeFilters.contains(e.type)) return false;
+      if (favoriteOnly && !e.isFavorite) return false;
+      return true;
+    }).toList();
+  }
 
   String _getDateKey(DateTime date) {
     return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
@@ -451,7 +472,7 @@ class CalendarScreenState extends State<CalendarScreen> {
               cell.date.day == today.day;
           final isSelected = _selectedDate != null && dateKey == _getDateKey(_selectedDate!);
           
-          final events = (_eventsMap[dateKey] ?? []).where((e) => _activeFilters.contains(e.type)).toList();
+          final events = _filterEvents(_eventsMap[dateKey] ?? []);
 
           Widget dateWidget;
           if (isToday) {
@@ -528,7 +549,12 @@ class CalendarScreenState extends State<CalendarScreen> {
                   margin: const EdgeInsets.only(bottom: 2),
                   padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
                   decoration: BoxDecoration(color: e.type.bgColor, borderRadius: BorderRadius.circular(2)),
-                  child: Text(e.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: e.type.textColor, fontSize: 8, fontWeight: FontWeight.bold)),
+                  child: Text(
+                    e.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: e.type.textColor, fontSize: 8, fontWeight: FontWeight.bold),
+                  ),
                 )),
                 if (events.length > 2)
                   Container(
@@ -569,7 +595,7 @@ class CalendarScreenState extends State<CalendarScreen> {
     }
 
     final dateKey = _getDateKey(_selectedDate!);
-    final tasks = (_eventsMap[dateKey] ?? []).where((t) => _activeFilters.contains(t.type)).toList();
+    final tasks = _filterEvents(_eventsMap[dateKey] ?? []);
 
     return Padding(
       key: _taskListKey,
@@ -600,6 +626,7 @@ class CalendarScreenState extends State<CalendarScreen> {
                 leadManager: task.leadManager ?? '-',
                 dateLabel: dateLabel,
                 status: task.type.label,
+                isFavorite: task.isFavorite,
                 trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.borderGray),
                 onTap: () => Navigator.push(
                   context,
@@ -647,6 +674,7 @@ class CalendarScreenState extends State<CalendarScreen> {
     required String leadManager,
     required String dateLabel,
     String? status,
+    bool isFavorite = false,
     required Widget trailing,
     required VoidCallback onTap,
   }) {
@@ -667,10 +695,9 @@ class CalendarScreenState extends State<CalendarScreen> {
         child: Row(
           children: [
             // 좌측: 점수 + 상태뱃지
-            SizedBox(
-              width: 80,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     '• $score점',
@@ -680,14 +707,27 @@ class CalendarScreenState extends State<CalendarScreen> {
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  if (status != null) ...[
+                  if (isFavorite) ...[
                     const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF5E6FF),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        '관심',
+                        style: TextStyle(color: Color(0xFF9E00FF), fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                  if (status != null) ...[
+                    const SizedBox(height: 4),
                     _buildStatusBadge(status),
                   ],
                 ],
-              ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 20),
             // 중앙: 종목명 + 주관사 + 날짜
             Expanded(
               child: Column(
