@@ -47,7 +47,7 @@ class MyApp extends StatelessWidget {
           color: const Color(0xFFF5F6F8), // 브라우저 배경색
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 500),
+              constraints: const BoxConstraints(maxWidth: 412),
               child: child,
             ),
           ),

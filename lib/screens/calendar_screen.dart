@@ -10,6 +10,8 @@ class CalendarEvent {
   final EventType type;
   final int? score;
   final String? leadManager;
+  final String? startDate; // YYYY-MM-DD
+  final String? endDate;   // YYYY-MM-DD
 
   CalendarEvent({
     required this.ipoId,
@@ -17,6 +19,8 @@ class CalendarEvent {
     required this.type,
     this.score,
     this.leadManager,
+    this.startDate,
+    this.endDate,
   });
 }
 
@@ -194,7 +198,19 @@ class CalendarScreenState extends State<CalendarScreen> {
           mergeCells(cells);
         }
       }
-      
+
+      // calendarCells 기반으로 각 IPO+타입별 날짜 목록 수집 → 시작/종료일 계산
+      final Map<String, List<String>> eventDatesMap = {};
+      for (final entry in newMap.entries) {
+        for (final event in entry.value) {
+          final key = '${event.ipoId}_${event.type.name}';
+          eventDatesMap.putIfAbsent(key, () => []).add(entry.key);
+        }
+      }
+      for (final dates in eventDatesMap.values) {
+        dates.sort();
+      }
+
       // 2. 선택된 날짜 상세 섹션(selectedDateSection) 파싱하여 덮어쓰기 (상세 점수 및 주관사 정보 추가)
       final selectedDateSection = rawData['selectedDateSection'];
       DateTime? resolvedSelectedDate;
@@ -207,10 +223,10 @@ class CalendarScreenState extends State<CalendarScreen> {
             int.parse(dateParts[1]),
             int.parse(dateParts[2]),
           );
-          
+
           final List<dynamic> companies = selectedDateSection['companies'] ?? [];
           final List<CalendarEvent> selectedEvents = [];
-          
+
           for (var comp in companies) {
             final String typeStr = comp['scheduleType'] ?? '';
             EventType? type;
@@ -223,20 +239,28 @@ class CalendarScreenState extends State<CalendarScreen> {
             } else if (typeStr.contains('LISTING')) {
               type = EventType.listing;
             }
-            
+
             if (type != null) {
-              final double? scoreDouble = comp['attractionScore'] != null 
-                  ? (comp['attractionScore'] as num).toDouble() 
+              final double? scoreDouble = comp['attractionScore'] != null
+                  ? (comp['attractionScore'] as num).toDouble()
                   : null;
               final int? scoreInt = scoreDouble?.toInt();
               final String ipoId = comp['ipoId'].toString();
 
+              final resolvedType = _favoriteIpoIds.contains(ipoId) ? EventType.favorite : type;
+              final lookupKey = '${ipoId}_${resolvedType.name}';
+              final dates = eventDatesMap[lookupKey] ?? [];
+              final startDate = dates.isNotEmpty ? dates.first : null;
+              final endDate = dates.length > 1 ? dates.last : null;
+
               selectedEvents.add(CalendarEvent(
                 ipoId: ipoId,
                 name: comp['companyName'] ?? '',
-                type: _favoriteIpoIds.contains(ipoId) ? EventType.favorite : type,
+                type: resolvedType,
                 score: scoreInt,
                 leadManager: comp['securitiesCompanyName'],
+                startDate: startDate,
+                endDate: endDate,
               ));
             }
           }
@@ -274,6 +298,12 @@ class CalendarScreenState extends State<CalendarScreen> {
 
   String _getDateKey(DateTime date) {
     return "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+  }
+
+  String _formatShortDate(String dateStr) {
+    final parts = dateStr.split('-');
+    if (parts.length < 3) return dateStr;
+    return '${parts[1]}.${parts[2]}';
   }
 
   void _nextMonth() {
@@ -551,19 +581,32 @@ class CalendarScreenState extends State<CalendarScreen> {
           const SizedBox(height: 16),
           if (tasks.isEmpty) 
             const Center(child: Text('일정이 없습니다.'))
-          else 
-            ...tasks.map((task) => _buildIpoCard(
-              score: task.score ?? 0,
-              ipoName: task.name,
-              leadManager: task.leadManager ?? '-',
-              dateLabel: '${_selectedDate!.month.toString().padLeft(2, '0')}.${_selectedDate!.day.toString().padLeft(2, '0')}',
-              status: task.type.label,
-              trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.borderGray),
-              onTap: () => Navigator.push(
-                context, 
-                MaterialPageRoute(builder: (_) => IpoDetailScreen(ipoId: task.ipoId, ipoName: task.name))
-              ).then((_) => _fetchCalendarData(showLoading: false)),
-            )),
+          else
+            ...tasks.map((task) {
+              final String dateLabel;
+              if (task.startDate != null) {
+                final start = _formatShortDate(task.startDate!);
+                if (task.endDate != null && task.endDate != task.startDate) {
+                  dateLabel = '$start ~ ${_formatShortDate(task.endDate!)}';
+                } else {
+                  dateLabel = start;
+                }
+              } else {
+                dateLabel = '${_selectedDate!.month.toString().padLeft(2, '0')}.${_selectedDate!.day.toString().padLeft(2, '0')}';
+              }
+              return _buildIpoCard(
+                score: task.score ?? 0,
+                ipoName: task.name,
+                leadManager: task.leadManager ?? '-',
+                dateLabel: dateLabel,
+                status: task.type.label,
+                trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.borderGray),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => IpoDetailScreen(ipoId: task.ipoId, ipoName: task.name))
+                ).then((_) => _fetchCalendarData(showLoading: false)),
+              );
+            }),
         ],
       ),
     );

@@ -3,8 +3,10 @@ import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import 'ipo_detail_screen.dart';
 import 'home_search_screen.dart';
+import 'notification_screen.dart';
 import '../services/ipo_service.dart';
 import '../services/user_service.dart';
+import '../services/notification_service.dart';
 import '../models/auth_manager.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -19,10 +21,16 @@ class _HomeScreenState extends State<HomeScreen> {
   final UserService _userService = UserService();
   bool _isLoading = true;
   Map<String, dynamic>? _homeData;
-  
+  List<dynamic>? _cachedFeaturedIpos;
+  List<dynamic>? _cachedAttractivenessItems;
+
   int _selectedFilterIndex = 0;
-  final List<String> _filterKeys = ['recentGrowth', 'subscriptionUpcoming', 'favorite'];
-  final List<String> _filters = ['최근 상장순', '청약 예정순', '관심 종목순'];
+  final List<String> _filterKeys = [
+    'recentGrowth',
+    'subscriptionUpcoming',
+    'favorite'
+  ];
+  final List<String> _filters = ['최근 상장순', '청약 진행/예정순', '관심 종목순'];
 
   static const int _attractInitialCount = 4;
   static const int _attractStep = 4;
@@ -30,11 +38,28 @@ class _HomeScreenState extends State<HomeScreen> {
   int _attractVisibleCount = _attractInitialCount;
 
   final GlobalKey _attractSectionKey = GlobalKey();
+  int _unreadCount = 0;
 
   @override
   void initState() {
     super.initState();
     _fetchHomeData();
+    _unreadCount = NotificationService.instance.unreadCount;
+    NotificationService.instance.addListener(_onNotificationUpdate);
+  }
+
+  @override
+  void dispose() {
+    NotificationService.instance.removeListener(_onNotificationUpdate);
+    super.dispose();
+  }
+
+  void _onNotificationUpdate() {
+    if (mounted) {
+      setState(() {
+        _unreadCount = NotificationService.instance.unreadCount;
+      });
+    }
   }
 
   Future<void> _fetchHomeData() async {
@@ -53,6 +78,11 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       setState(() {
         _homeData = data;
+        if (_filterKeys[_selectedFilterIndex] != 'favorite') {
+          _cachedFeaturedIpos = data['featuredIpos'] ?? [];
+          _cachedAttractivenessItems = data['attractivenessItems'] ??
+              data['attractiveness']?['items'] ?? [];
+        }
         _isLoading = false;
       });
     } catch (e) {
@@ -115,20 +145,21 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_isLoading && _homeData == null) {
       return const Scaffold(
         backgroundColor: AppColors.white,
-        body: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+        body:
+            Center(child: CircularProgressIndicator(color: AppColors.primary)),
       );
     }
 
-    // 1. 추천 종목 추출 (조회 로그 없으면 매력지수나 트렌딩 종목으로 대체)
-    final featuredIpo = (_homeData?['featuredIpos']?.isNotEmpty == true)
-        ? _homeData!['featuredIpos'][0]
-        : (_homeData?['attractivenessItems']?.isNotEmpty == true)
-            ? _homeData!['attractivenessItems'][0]
+    final featuredIpo = (_cachedFeaturedIpos?.isNotEmpty == true)
+        ? _cachedFeaturedIpos![0]
+        : (_cachedAttractivenessItems?.isNotEmpty == true)
+            ? _cachedAttractivenessItems![0]
             : (_homeData?['trendingIpos']?.isNotEmpty == true)
                 ? _homeData!['trendingIpos'][0]
                 : null;
     final trendingIpos = _homeData?['trendingIpos'] ?? [];
-    final attractivenessItems = _sortedAttractivenessItems(_homeData?['attractiveness']?['items'] ?? []);
+    final attractivenessItems = _sortedAttractivenessItems(
+        _homeData?['attractiveness']?['items'] ?? []);
     final userType = AuthManager.instance.user?.investmentType ?? '#분석대기중';
     final badgeColors = _getBadgeColors(userType);
 
@@ -153,7 +184,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 8),
                             decoration: BoxDecoration(
                               color: badgeColors['bg'],
                               borderRadius: BorderRadius.circular(16),
@@ -167,16 +199,56 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.search, color: AppColors.textDark, size: 28),
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => const HomeSearchScreen()),
-                              );
-                            },
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
+                          Row(
+                            children: [
+                              // 확성기 버튼 (알림 목록)
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const NotificationScreen()),
+                                  );
+                                },
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    const Icon(Icons.campaign_outlined,
+                                        color: AppColors.textDark, size: 28),
+                                    if (_unreadCount > 0)
+                                      Positioned(
+                                        top: -2,
+                                        right: -2,
+                                        child: Container(
+                                          width: 8,
+                                          height: 8,
+                                          decoration: const BoxDecoration(
+                                            color: AppColors.primaryRed,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              // 검색 버튼
+                              IconButton(
+                                icon: const Icon(Icons.search,
+                                    color: AppColors.textDark, size: 28),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const HomeSearchScreen()),
+                                  );
+                                },
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -206,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   MaterialPageRoute(
                                     builder: (_) => IpoDetailScreen(
                                       ipoId: featuredIpo['ipoId'].toString(),
-                                      ipoName: featuredIpo['name'],
+                                      ipoName: featuredIpo['name'] ?? featuredIpo['companyName'] ?? '',
                                     ),
                                   ),
                                 );
@@ -216,9 +288,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Row(
+                                    const Row(
                                       children: [
-                                        const Text(
+                                        Text(
                                           "AIPO's Pick",
                                           style: TextStyle(
                                             color: AppColors.primary,
@@ -226,59 +298,108 @@ class _HomeScreenState extends State<HomeScreen> {
                                             fontWeight: FontWeight.w800,
                                           ),
                                         ),
-                                        const Spacer(),
-                                        Container(
-                                          width: 32,
-                                          height: 32,
-                                          decoration: const BoxDecoration(
-                                            color: AppColors.white,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: const Icon(Icons.chevron_right, size: 20, color: AppColors.primary),
+                                        Spacer(),
+                                        Icon(
+                                          Icons.chevron_right,
+                                          size: 24,
+                                          color: AppColors.textDark,
                                         ),
                                       ],
                                     ),
                                     const SizedBox(height: 8),
-                                    Text(
-                                      '사용자 님의 ${userType.replaceAll('#', '')} 성향에 딱 맞는 종목이에요',
-                                      style: const TextStyle(color: Color(0xFF4A4A4A), fontSize: 13, fontWeight: FontWeight.w500),
-                                    ),
-                                    const SizedBox(height: 24),
-                                    Row(
-                                      children: [
-                                        Container(
-                                          width: 32,
-                                          height: 32,
-                                          decoration: const BoxDecoration(
-                                            color: AppColors.white,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Center(
-                                            child: Text(
-                                              (featuredIpo['name'] as String? ?? '').isNotEmpty
-                                                  ? (featuredIpo['name'] as String).substring(0, 1)
-                                                  : '?',
-                                              style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800, fontSize: 15),
+                                    Text.rich(
+                                      TextSpan(
+                                        children: [
+                                          TextSpan(text: '${AuthManager.instance.user?.name ?? '사용자'} 님의 '),
+                                          TextSpan(
+                                            text: userType.replaceAll('#', ''),
+                                            style: TextStyle(
+                                              color: badgeColors['text'] ?? AppColors.primary,
+                                              fontWeight: FontWeight.w800,
                                             ),
                                           ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
+                                          const TextSpan(text: ' 성향에 딱 맞는 종목이에요'),
+                                        ],
+                                      ),
+                                      style: const TextStyle(
+                                          color: Color(0xFF4A4A4A),
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Row(
+                                      children: [
+                                        Flexible(
                                           child: Text(
-                                            featuredIpo['name'],
-                                            style: const TextStyle(color: AppColors.textDark, fontSize: 18, fontWeight: FontWeight.w800),
+                                            featuredIpo['name'] ?? featuredIpo['companyName'] ?? '',
+                                            style: const TextStyle(
+                                                color: AppColors.textDark,
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.w800),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
+                                        const SizedBox(width: 8),
+                                        () {
+                                          final raw = featuredIpo['score'] ?? featuredIpo['attractionScore'];
+                                          final score = double.tryParse(raw?.toString() ?? '')?.round();
+                                          if (score == null) return const SizedBox.shrink();
+                                          return Text(
+                                            '$score점',
+                                            style: const TextStyle(
+                                              color: AppColors.primary,
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          );
+                                        }(),
                                       ],
                                     ),
-                                    const SizedBox(height: 20),
-                                    const Row(
-                                      children: [
-                                        Icon(Icons.trending_up, size: 18, color: Color(0xFF4A4A4A)),
-                                        SizedBox(width: 6),
-                                        Text('매력지수 상위권 종목', style: TextStyle(color: Color(0xFF4A4A4A), fontSize: 13)),
-                                      ],
-                                    ),
+                                    const SizedBox(height: 16),
+                                    () {
+                                      final leadManager = featuredIpo['leadManager'] as String?;
+                                      final now = DateTime.now();
+                                      final today = DateTime(now.year, now.month, now.day);
+                                      final dateText = _buildFeaturedDateLabel(
+                                          Map<dynamic, dynamic>.from(featuredIpo as Map), today);
+
+                                      final hasLead = leadManager != null && leadManager.isNotEmpty;
+                                      final hasDate = dateText != null;
+                                      if (!hasLead && !hasDate) return const SizedBox.shrink();
+
+                                      return Row(
+                                        children: [
+                                          if (hasLead) ...[
+                                            const Icon(Icons.business_outlined,
+                                                size: 13, color: Color(0xFF4A4A4A)),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '주관사: $leadManager',
+                                              style: const TextStyle(
+                                                  color: AppColors.textDark, fontSize: 12, fontWeight: FontWeight.w700),
+                                            ),
+                                          ],
+                                          if (hasLead && hasDate)
+                                            const SizedBox(width: 12),
+                                          if (hasDate) ...[
+                                            const Icon(Icons.calendar_today_outlined,
+                                                size: 13, color: Color(0xFF4A4A4A)),
+                                            const SizedBox(width: 4),
+                                            Flexible(
+                                              child: Text(
+                                                dateText,
+                                                style: const TextStyle(
+                                                    color: AppColors.primary,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      );
+                                    }(),
                                   ],
                                 ),
                               ),
@@ -295,12 +416,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('인기 누적 조회 공모주', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textDark)),
+                      const Text('인기 누적 조회 공모주',
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textDark)),
                       const SizedBox(height: 20),
                       if (trendingIpos.isEmpty)
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 20),
-                          child: Text('아직 조회된 공모주가 없습니다.', style: TextStyle(color: AppColors.textGray)),
+                          child: Text('아직 조회된 공모주가 없습니다.',
+                              style: TextStyle(color: AppColors.textGray)),
                         )
                       else
                         Column(
@@ -312,7 +438,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   MaterialPageRoute(
                                     builder: (_) => IpoDetailScreen(
                                       ipoId: item['ipoId'].toString(),
-                                      ipoName: item['name'],
+                                      ipoName: item['name'] ?? item['companyName'] ?? '',
                                     ),
                                   ),
                                 );
@@ -325,13 +451,19 @@ class _HomeScreenState extends State<HomeScreen> {
                                       width: 28,
                                       child: Text(
                                         '${item['rank']}',
-                                        style: const TextStyle(color: AppColors.primary, fontSize: 16, fontWeight: FontWeight.w800),
+                                        style: const TextStyle(
+                                            color: AppColors.primary,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800),
                                       ),
                                     ),
                                     Expanded(
                                       child: Text(
-                                        item['name'],
-                                        style: const TextStyle(color: AppColors.textDark, fontSize: 16, fontWeight: FontWeight.w700),
+                                        item['name'] ?? item['companyName'] ?? '',
+                                        style: const TextStyle(
+                                            color: AppColors.textDark,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700),
                                       ),
                                     ),
                                     const SizedBox(width: 12),
@@ -340,7 +472,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                       child: Text(
                                         '${item['viewCount'] ?? 0} 조회',
                                         textAlign: TextAlign.right,
-                                        style: const TextStyle(color: AppColors.textGray, fontSize: 13, fontWeight: FontWeight.w500),
+                                        style: const TextStyle(
+                                            color: AppColors.textGray,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500),
                                       ),
                                     ),
                                   ],
@@ -369,20 +504,29 @@ class _HomeScreenState extends State<HomeScreen> {
                               onTap: () => _onFilterTapped(index),
                               child: Container(
                                 margin: const EdgeInsets.only(right: 10),
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 10),
                                 decoration: BoxDecoration(
-                                  color: isSelected ? const Color(0xFF383838) : AppColors.white,
+                                  color: isSelected
+                                      ? const Color(0xFF383838)
+                                      : AppColors.white,
                                   borderRadius: BorderRadius.circular(24),
                                   border: Border.all(
-                                    color: isSelected ? const Color(0xFF383838) : AppColors.borderGray,
+                                    color: isSelected
+                                        ? const Color(0xFF383838)
+                                        : AppColors.borderGray,
                                   ),
                                 ),
                                 child: Text(
                                   _filters[index],
                                   style: TextStyle(
-                                    color: isSelected ? AppColors.white : AppColors.textGray,
+                                    color: isSelected
+                                        ? AppColors.white
+                                        : AppColors.textGray,
                                     fontSize: 14,
-                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
                                   ),
                                 ),
                               ),
@@ -392,14 +536,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(height: 24),
                       if (_isLoading && _homeData != null)
-                        const Center(child: Padding(
+                        const Center(
+                            child: Padding(
                           padding: EdgeInsets.all(40.0),
                           child: CircularProgressIndicator(),
                         ))
                       else if (attractivenessItems.isEmpty)
-                        const Center(child: Padding(
+                        const Center(
+                            child: Padding(
                           padding: EdgeInsets.all(40.0),
-                          child: Text('해당 조건의 종목이 없습니다.', style: TextStyle(color: AppColors.textGray)),
+                          child: Text('해당 조건의 종목이 없습니다.',
+                              style: TextStyle(color: AppColors.textGray)),
                         ))
                       else
                         Builder(builder: (context) {
@@ -407,23 +554,33 @@ class _HomeScreenState extends State<HomeScreen> {
                               attractivenessItems.length < _attractMaxCount
                                   ? attractivenessItems.length
                                   : _attractMaxCount;
-                          final int shownCount = _attractVisibleCount < totalAvailable
-                              ? _attractVisibleCount
-                              : totalAvailable;
+                          final int shownCount =
+                              _attractVisibleCount < totalAvailable
+                                  ? _attractVisibleCount
+                                  : totalAvailable;
                           final int remaining = totalAvailable - shownCount;
-                          final int nextStep = remaining < _attractStep ? remaining : _attractStep;
+                          final int nextStep = remaining < _attractStep
+                              ? remaining
+                              : _attractStep;
 
                           return Column(
                             children: [
                               Column(
-                                children: attractivenessItems.take(shownCount).map<Widget>((item) {
-                                  final filterKey = _filterKeys[_selectedFilterIndex];
+                                children: attractivenessItems
+                                    .take(shownCount)
+                                    .map<Widget>((item) {
+                                  final filterKey =
+                                      _filterKeys[_selectedFilterIndex];
                                   final String dateLabel;
-                                  if (filterKey == 'recentGrowth' && item['listingDate'] != null) {
-                                    dateLabel = '${_formatDate(item['listingDate']?.toString())} 상장';
+                                  if (filterKey == 'recentGrowth' &&
+                                      item['listingDate'] != null) {
+                                    dateLabel =
+                                        '${_formatDate(item['listingDate']?.toString())} 상장';
                                   } else if (filterKey == 'favorite') {
-                                    final String range = (item['dateRange'] ?? '-') as String;
-                                    final String? status = item['status']?.toString();
+                                    final String range =
+                                        (item['dateRange'] ?? '-') as String;
+                                    final String? status =
+                                        item['status']?.toString();
                                     switch (status) {
                                       case '수요예측':
                                         dateLabel = '$range 수요예측';
@@ -440,24 +597,41 @@ class _HomeScreenState extends State<HomeScreen> {
                                       default:
                                         dateLabel = range;
                                     }
-                                  } else if (item['subscriptionStartDate'] != null) {
-                                    dateLabel = '${_formatDate(item['subscriptionStartDate']?.toString())} 청약 시작';
+                                  } else if (item['subscriptionStartDate'] !=
+                                      null) {
+                                    dateLabel =
+                                        '${_formatDate(item['subscriptionStartDate']?.toString())} 청약 시작';
                                   } else {
-                                    dateLabel = (item['dateRange'] ?? '-') as String;
+                                    dateLabel =
+                                        (item['dateRange'] ?? '-') as String;
                                   }
                                   return _buildIpoCard(
-                                    score: double.tryParse((item['score'] ?? item['attractionScore'] ?? 0).toString())?.round() ?? 0,
-                                    ipoName: item['name'] ?? item['companyName'] ?? '-',
+                                    score: double.tryParse((item['score'] ??
+                                                    item['attractionScore'] ??
+                                                    0)
+                                                .toString())
+                                            ?.round() ??
+                                        0,
+                                    ipoName: item['name'] ??
+                                        item['companyName'] ??
+                                        '-',
                                     leadManager: item['leadManager'] ?? '-',
                                     dateLabel: dateLabel,
                                     status: null,
-                                    trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.borderGray),
-                                    onTap: () => Navigator.push(context, MaterialPageRoute(
-                                      builder: (_) => IpoDetailScreen(
-                                        ipoId: item['ipoId'].toString(),
-                                        ipoName: item['name'] ?? item['companyName'] ?? '',
-                                      ),
-                                    )),
+                                    trailing: const Icon(
+                                        Icons.arrow_forward_ios,
+                                        size: 14,
+                                        color: AppColors.borderGray),
+                                    onTap: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => IpoDetailScreen(
+                                            ipoId: item['ipoId'].toString(),
+                                            ipoName: item['name'] ??
+                                                item['companyName'] ??
+                                                '',
+                                          ),
+                                        )),
                                   );
                                 }).toList(),
                               ),
@@ -468,13 +642,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                   child: OutlinedButton(
                                     onPressed: () {
                                       setState(() {
-                                        _attractVisibleCount = (_attractVisibleCount + _attractStep)
+                                        _attractVisibleCount =
+                                            (_attractVisibleCount +
+                                                    _attractStep)
                                                 .clamp(0, _attractMaxCount);
                                       });
                                     },
                                     style: OutlinedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(vertical: 14),
-                                      side: BorderSide(color: AppColors.borderGray.withOpacity(0.7)),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 14),
+                                      side: BorderSide(
+                                          color: AppColors.borderGray
+                                              .withOpacity(0.7)),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(20),
                                       ),
@@ -496,12 +675,16 @@ class _HomeScreenState extends State<HomeScreen> {
                                   child: OutlinedButton(
                                     onPressed: () {
                                       setState(() {
-                                        _attractVisibleCount = _attractInitialCount;
+                                        _attractVisibleCount =
+                                            _attractInitialCount;
                                       });
                                     },
                                     style: OutlinedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(vertical: 14),
-                                      side: BorderSide(color: AppColors.borderGray.withOpacity(0.7)),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 14),
+                                      side: BorderSide(
+                                          color: AppColors.borderGray
+                                              .withOpacity(0.7)),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(20),
                                       ),
@@ -535,19 +718,78 @@ class _HomeScreenState extends State<HomeScreen> {
     return '${parts[1]}.${parts[2]}';
   }
 
+  String? _buildFeaturedDateLabel(Map<dynamic, dynamic> ipo, DateTime today) {
+    final startRaw = ipo['subscriptionStartDate']?.toString();
+    final endRaw = ipo['subscriptionEndDate']?.toString();
+    final refundRaw = ipo['refundDate']?.toString();
+    final listingRaw = ipo['listingDate']?.toString();
+
+    final subStart = startRaw != null ? DateTime.tryParse(startRaw) : null;
+    final subEnd = endRaw != null ? DateTime.tryParse(endRaw) : null;
+    final refund = refundRaw != null ? DateTime.tryParse(refundRaw) : null;
+    final listing = listingRaw != null ? DateTime.tryParse(listingRaw) : null;
+
+    DateTime d(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
+
+    if (subStart != null) {
+      final normalizedStart = d(subStart);
+      final dateStr = subEnd != null
+          ? '${_formatDate(startRaw)} ~ ${_formatDate(endRaw)}'
+          : _formatDate(startRaw);
+
+      if (today.isBefore(normalizedStart)) {
+        final diff = normalizedStart.difference(today).inDays;
+        return '청약 D-$diff ($dateStr)';
+      }
+
+      if (subEnd != null) {
+        if (!today.isAfter(d(subEnd))) {
+          return '청약 진행중 ($dateStr)';
+        }
+      } else {
+        if (today.isAtSameMomentAs(normalizedStart)) {
+          return '청약 진행중 ($dateStr)';
+        }
+      }
+    }
+
+    if (refund != null && !today.isAfter(d(refund))) {
+      final diff = d(refund).difference(today).inDays;
+      return diff == 0
+          ? '오늘 환불일 (${_formatDate(refundRaw)})'
+          : '환불 D-$diff (${_formatDate(refundRaw)})';
+    }
+
+    if (listing != null) {
+      final diff = d(listing).difference(today).inDays;
+      if (diff > 0) return '상장 D-$diff (${_formatDate(listingRaw)})';
+      if (diff == 0) return '오늘 상장! (${_formatDate(listingRaw)})';
+      return '상장일: ${_formatDate(listingRaw)}';
+    }
+
+    return null;
+  }
+
   List<dynamic> _sortedAttractivenessItems(dynamic rawItems) {
     final items = List<dynamic>.from(rawItems as List? ?? []);
     final filterKey = _filterKeys[_selectedFilterIndex];
 
     if (filterKey == 'recentGrowth') {
+      final today = DateTime.now();
+      items.removeWhere((item) {
+        final date = _parseItemDate(item, 'listingDate');
+        return date == null || date.isAfter(today);
+      });
       items.sort((a, b) => _compareDateDesc(
             _parseItemDate(a, 'listingDate'),
             _parseItemDate(b, 'listingDate'),
           ));
     } else if (filterKey == 'subscriptionUpcoming') {
       items.sort((a, b) => _compareDateAsc(
-            _parseItemDate(a, 'subscriptionStartDate') ?? _parseItemDate(a, 'subscriptionEndDate'),
-            _parseItemDate(b, 'subscriptionStartDate') ?? _parseItemDate(b, 'subscriptionEndDate'),
+            _parseItemDate(a, 'subscriptionStartDate') ??
+                _parseItemDate(a, 'subscriptionEndDate'),
+            _parseItemDate(b, 'subscriptionStartDate') ??
+                _parseItemDate(b, 'subscriptionEndDate'),
           ));
     }
 
@@ -578,21 +820,28 @@ class _HomeScreenState extends State<HomeScreen> {
     Color text;
     switch (status) {
       case '수요예측':
-        bg = const Color(0xFFFFEAEA); text = const Color(0xFFD32F2F);
+        bg = const Color(0xFFFFEAEA);
+        text = const Color(0xFFD32F2F);
         break;
       case '상장':
-        bg = const Color(0xFFE2F6EA); text = const Color(0xFF107C41);
+        bg = const Color(0xFFE2F6EA);
+        text = const Color(0xFF107C41);
         break;
       case '청약종료':
-        bg = const Color(0xFFF3F3F3); text = AppColors.textGray;
+        bg = const Color(0xFFF3F3F3);
+        text = AppColors.textGray;
         break;
       default: // 청약
-        bg = AppColors.bgLightBlue; text = AppColors.primary;
+        bg = AppColors.bgLightBlue;
+        text = AppColors.primary;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-      child: Text(status, style: TextStyle(color: text, fontSize: 11, fontWeight: FontWeight.bold)),
+      decoration:
+          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+      child: Text(status,
+          style: TextStyle(
+              color: text, fontSize: 11, fontWeight: FontWeight.bold)),
     );
   }
 
@@ -614,10 +863,13 @@ class _HomeScreenState extends State<HomeScreen> {
           color: AppColors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
-          boxShadow: [BoxShadow(
-            color: AppColors.black.withOpacity(0.015),
-            blurRadius: 10, offset: const Offset(0, 4),
-          )],
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.black.withOpacity(0.015),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            )
+          ],
         ),
         child: Row(
           children: [
@@ -651,7 +903,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(
                     ipoName,
                     style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
                       color: AppColors.textDark,
                     ),
                     maxLines: 1,
@@ -661,7 +914,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(
                     leadManager,
                     style: const TextStyle(
-                      color: AppColors.textGray, fontSize: 13,
+                      color: AppColors.textGray,
+                      fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -669,7 +923,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(
                     dateLabel,
                     style: const TextStyle(
-                      color: AppColors.textGray, fontSize: 13,
+                      color: AppColors.textGray,
+                      fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
                   ),

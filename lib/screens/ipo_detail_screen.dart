@@ -640,8 +640,8 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
       Map<String, dynamic> schedule, String companyName) {
     final demandForecast = schedule['demandForecastPeriod'] ?? {};
     final subPeriod = schedule['subscriptionPeriod'] ?? {};
-    final refundDate = schedule['refundDate'];
-    final listingDate = schedule['listingDate'];
+    final refundDate = schedule['refundDate']?.toString();
+    final listingDate = schedule['listingDate']?.toString();
 
     final String demandStr = _formatDateRange(
         demandForecast['startDate'], demandForecast['endDate']);
@@ -649,6 +649,26 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
         _formatDateRange(subPeriod['startDate'], subPeriod['endDate']);
     final String refundStr = _formatDateShort(refundDate);
     final String listingStr = _formatDateShort(listingDate);
+
+    final today = DateTime.now();
+    final d = DateTime(today.year, today.month, today.day);
+
+    bool inPeriod(String? start, String? end) {
+      if (start == null) return false;
+      final s = DateTime.tryParse(start);
+      if (s == null) return false;
+      final sDate = DateTime(s.year, s.month, s.day);
+      if (end == null) return d == sDate;
+      final e = DateTime.tryParse(end);
+      if (e == null) return d == sDate;
+      final eDate = DateTime(e.year, e.month, e.day);
+      return !d.isBefore(sDate) && !d.isAfter(eDate);
+    }
+
+    final demandActive = inPeriod(demandForecast['startDate']?.toString(), demandForecast['endDate']?.toString());
+    final subActive = inPeriod(subPeriod['startDate']?.toString(), subPeriod['endDate']?.toString());
+    final refundActive = inPeriod(refundDate, null);
+    final listingActive = inPeriod(listingDate, null);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -664,13 +684,13 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
           ),
           child: Column(
             children: [
-              _buildTimelineRow('수요예측일', demandStr),
+              _buildTimelineRow('수요예측일', demandStr, isActive: demandActive),
               const SizedBox(height: 20),
-              _buildTimelineRow('청약일', subStr),
+              _buildTimelineRow('청약일', subStr, isActive: subActive),
               const SizedBox(height: 20),
-              _buildTimelineRow('환불일', refundStr),
+              _buildTimelineRow('환불일', refundStr, isActive: refundActive),
               const SizedBox(height: 20),
-              _buildTimelineRow('상장일', listingStr),
+              _buildTimelineRow('상장일', listingStr, isActive: listingActive),
             ],
           ),
         ),
@@ -679,32 +699,37 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
     );
   }
 
-  Widget _buildTimelineRow(String label, String dateStr) {
+  Widget _buildTimelineRow(String label, String dateStr, {bool isActive = false}) {
+    final dotColor = isActive ? AppColors.primary : AppColors.borderGray;
+    final labelColor = isActive ? AppColors.textDark : AppColors.textGray;
+    final dateColor = isActive ? AppColors.textDark : AppColors.textGray;
+    final fontWeight = isActive ? FontWeight.w700 : FontWeight.w500;
+
     return Row(
       children: [
         Container(
           width: 10,
           height: 10,
-          decoration: const BoxDecoration(
-            color: AppColors.primary,
+          decoration: BoxDecoration(
+            color: dotColor,
             shape: BoxShape.circle,
           ),
         ),
         const SizedBox(width: 16),
         Text(
           label,
-          style: const TextStyle(
-            color: AppColors.textGray,
-            fontWeight: FontWeight.w500,
+          style: TextStyle(
+            color: labelColor,
+            fontWeight: fontWeight,
             fontSize: 14,
           ),
         ),
         const Spacer(),
         Text(
           dateStr,
-          style: const TextStyle(
-            color: AppColors.textDark,
-            fontWeight: FontWeight.w600,
+          style: TextStyle(
+            color: dateColor,
+            fontWeight: fontWeight,
             fontSize: 14,
           ),
         ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_colors.dart';
@@ -23,6 +24,11 @@ class _HomeSearchScreenState extends State<HomeSearchScreen> {
   bool _isSearching = false;
   bool _hasSearched = false;
 
+  // 연관검색어 상태
+  List<String> _suggestions = [];
+  bool _isLoadingSuggestions = false;
+  Timer? _debounceTimer;
+
   static const String _recentSearchesKey = 'recent_searches';
   static const int _maxRecentSearches = 10;
 
@@ -35,18 +41,64 @@ class _HomeSearchScreenState extends State<HomeSearchScreen> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.removeListener(_onSearchTextChanged);
     _searchController.dispose();
     super.dispose();
   }
 
-  /// 검색어가 비워지면 초기 화면으로 복귀
   void _onSearchTextChanged() {
-    if (_searchController.text.isEmpty && _hasSearched) {
+    final text = _searchController.text;
+
+    if (text.isEmpty) {
+      _debounceTimer?.cancel();
+      setState(() {
+        _hasSearched = false;
+        _searchResults = [];
+        _suggestions = [];
+        _isLoadingSuggestions = false;
+      });
+      return;
+    }
+
+    // 검색 결과 보는 중에 텍스트를 수정하면 제안 모드로 전환
+    if (_hasSearched) {
       setState(() {
         _hasSearched = false;
         _searchResults = [];
       });
+    }
+
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 400), () {
+      _fetchSuggestions(text);
+    });
+  }
+
+  Future<void> _fetchSuggestions(String query) async {
+    if (query.trim().isEmpty || _hasSearched) return;
+    setState(() => _isLoadingSuggestions = true);
+
+    try {
+      final result = await _ipoService.getIpoList(keyword: query.trim(), size: 7);
+      final List items = result['content'] ?? result['items'] ?? [];
+      if (mounted && !_hasSearched) {
+        setState(() {
+          _suggestions = items
+              .map<String>((item) =>
+                  (item['companyName'] ?? item['name'] ?? '').toString())
+              .where((name) => name.isNotEmpty)
+              .toList();
+          _isLoadingSuggestions = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _suggestions = [];
+          _isLoadingSuggestions = false;
+        });
+      }
     }
   }
 
@@ -87,6 +139,8 @@ class _HomeSearchScreenState extends State<HomeSearchScreen> {
     setState(() {
       _isSearching = true;
       _hasSearched = true;
+      _suggestions = [];
+      _isLoadingSuggestions = false;
     });
 
     try {
@@ -168,11 +222,92 @@ class _HomeSearchScreenState extends State<HomeSearchScreen> {
             
             // Content
             Expanded(
-              child: _hasSearched ? _buildSearchResults() : _buildInitialContent(),
+              child: _hasSearched
+                  ? _buildSearchResults()
+                  : (_searchController.text.isNotEmpty
+                      ? _buildSuggestionsContent()
+                      : _buildInitialContent()),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  /// 연관검색어 목록
+  Widget _buildSuggestionsContent() {
+    if (_isLoadingSuggestions) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 32),
+        child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+      );
+    }
+
+    if (_suggestions.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+        child: Text(
+          '\'${_searchController.text}\'에 대한 연관검색어가 없습니다.',
+          style: const TextStyle(color: AppColors.textLightGray, fontSize: 14),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: EdgeInsets.zero,
+      itemCount: _suggestions.length,
+      separatorBuilder: (_, __) =>
+          const Divider(height: 1, thickness: 0.5, color: AppColors.borderGray),
+      itemBuilder: (context, index) {
+        final suggestion = _suggestions[index];
+        final query = _searchController.text.toLowerCase();
+        final lowerSuggestion = suggestion.toLowerCase();
+        final matchStart = lowerSuggestion.indexOf(query);
+
+        return InkWell(
+          onTap: () {
+            _searchController.text = suggestion;
+            _performSearch(suggestion);
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            child: Row(
+              children: [
+                const Icon(Icons.search, size: 18, color: AppColors.textLightGray),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: matchStart >= 0
+                      ? RichText(
+                          text: TextSpan(
+                            style: const TextStyle(
+                                fontSize: 15, color: AppColors.textDark),
+                            children: [
+                              if (matchStart > 0)
+                                TextSpan(text: suggestion.substring(0, matchStart)),
+                              TextSpan(
+                                text: suggestion.substring(
+                                    matchStart, matchStart + query.length),
+                                style: const TextStyle(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.bold),
+                              ),
+                              TextSpan(
+                                  text: suggestion
+                                      .substring(matchStart + query.length)),
+                            ],
+                          ),
+                        )
+                      : Text(suggestion,
+                          style: const TextStyle(
+                              fontSize: 15, color: AppColors.textDark)),
+                ),
+                const Icon(Icons.north_west,
+                    size: 14, color: AppColors.textLightGray),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

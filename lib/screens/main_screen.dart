@@ -4,6 +4,8 @@ import 'calendar_screen.dart';
 import 'mypage_screen.dart';
 import 'chatbot_screen.dart';
 import '../theme/app_colors.dart';
+import '../services/notification_service.dart';
+import '../widgets/ipo_notification_popup.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -29,6 +31,22 @@ class _MainScreenState extends State<MainScreen> {
       const ChatbotScreen(),
       MyPageScreen(key: _myPageKey),
     ];
+    _initNotifications();
+  }
+
+  Future<void> _initNotifications() async {
+    await NotificationService.instance.initialize();
+    if (!mounted) return;
+    if (NotificationService.instance.consumeAndCheckPopup()) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const IpoNotificationPopup(),
+        );
+      });
+    }
   }
 
   void _onItemTapped(int index) {
