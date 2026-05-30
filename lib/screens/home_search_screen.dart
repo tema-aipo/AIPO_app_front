@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_colors.dart';
+import '../widgets/status_badge.dart';
 import '../services/ipo_service.dart';
 import 'ipo_detail_screen.dart';
 
@@ -14,7 +15,7 @@ class HomeSearchScreen extends StatefulWidget {
 
 class _HomeSearchScreenState extends State<HomeSearchScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final IpoService _ipoService = IpoService();
+  final IpoService _ipoService = IpoService.instance;
 
   // 최근 검색어 (SharedPreferences에서 로드)
   List<String> _recentSearches = [];
@@ -506,7 +507,7 @@ class _HomeSearchScreenState extends State<HomeSearchScreen> {
                   ),
                   if (status != null && status.isNotEmpty) ...[
                     const SizedBox(height: 6),
-                    _buildStatusBadge(status),
+                    StatusBadge(status: status),
                   ],
                 ],
               ),
@@ -559,33 +560,4 @@ class _HomeSearchScreenState extends State<HomeSearchScreen> {
     );
   }
 
-  Widget _buildStatusBadge(String status) {
-    Color bg;
-    Color text;
-    switch (status) {
-      case '수요예측':
-      case 'DEMAND_FORECAST':
-        bg = const Color(0xFFFFEAEA);
-        text = const Color(0xFFD32F2F);
-        break;
-      case '상장':
-      case 'LISTED':
-        bg = const Color(0xFFE2F6EA);
-        text = const Color(0xFF107C41);
-        break;
-      case '청약종료':
-      case 'SUBSCRIPTION_CLOSED':
-        bg = const Color(0xFFF3F3F3);
-        text = AppColors.textGray;
-        break;
-      default: // 청약
-        bg = AppColors.bgLightBlue;
-        text = AppColors.primary;
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-      child: Text(status, style: TextStyle(color: text, fontSize: 11, fontWeight: FontWeight.bold)),
-    );
-  }
 }

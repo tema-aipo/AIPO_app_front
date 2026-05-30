@@ -14,8 +14,8 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final UserService _userService = UserService();
-  final AuthService _authService = AuthService();
+  final UserService _userService = UserService.instance;
+  final AuthService _authService = AuthService.instance;
   
   final TextEditingController _currentPasswordController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();

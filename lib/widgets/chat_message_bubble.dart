@@ -335,7 +335,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                         });
                         if (_feedbackState == 1) {
                           try {
-                            await ChatService().submitFeedback(
+                            await ChatService.instance.submitFeedback(
                               messageId: widget.message.id,
                               feedbackType: 'LIKE',
                             );
@@ -422,7 +422,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                               });
 
                               try {
-                                await ChatService().submitFeedback(
+                                await ChatService.instance.submitFeedback(
                                   messageId: widget.message.id,
                                   feedbackType: 'DISLIKE',
                                   reasonCode: reasonCodes[reasonIdx],

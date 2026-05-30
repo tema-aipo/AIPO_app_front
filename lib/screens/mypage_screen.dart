@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:dio/dio.dart';
 import '../theme/app_colors.dart';
+import '../utils/investment_type.dart';
+import '../widgets/ipo_card.dart';
 import 'ipo_detail_screen.dart';
 import 'login_screen.dart';
 import 'signup_step2_screen.dart';
@@ -20,9 +22,9 @@ class MyPageScreen extends StatefulWidget {
 }
 
 class MyPageScreenState extends State<MyPageScreen> {
-  final UserService _userService = UserService();
-  final IpoService _ipoService = IpoService();
-  final AuthService _authService = AuthService();
+  final UserService _userService = UserService.instance;
+  final IpoService _ipoService = IpoService.instance;
+  final AuthService _authService = AuthService.instance;
 
   List<dynamic> _favorites = [];
   bool _isLoading = true;
@@ -30,31 +32,6 @@ class MyPageScreenState extends State<MyPageScreen> {
   bool _isSubscriptionAlarmOn = true;
   bool _isListingAlarmOn = false;
   final Map<String, bool> _activeNotifications = {};
-
-  Map<String, Color> _getBadgeColors(String rawType) {
-    final cleanType = rawType.startsWith('#') ? rawType : '#$rawType';
-    if (cleanType == '#안정형') {
-      return {
-        'bg': AppColors.bgLightBlue,
-        'text': AppColors.primary,
-      };
-    } else if (cleanType == '#공격형') {
-      return {
-        'bg': const Color(0xFFFFEAEA),
-        'text': const Color(0xFFD32F2F),
-      };
-    } else if (cleanType == '#중립형') {
-      return {
-        'bg': const Color(0xFFE2F6EA),
-        'text': const Color(0xFF107C41),
-      };
-    } else {
-      return {
-        'bg': const Color(0xFFF3F3F3),
-        'text': AppColors.textGray,
-      };
-    }
-  }
 
   @override
   void initState() {
@@ -138,18 +115,10 @@ class MyPageScreenState extends State<MyPageScreen> {
     try {
       await _ipoService.toggleFavorite(ipoId, !currentStatus);
       
-      // 백그라운드 데이터 갱신 (로딩 스피너 없는 조용한 갱신)
-      final results = await Future.wait([
-        _userService.getFavorites(),
-        _userService.getNotificationSettings(),
-      ]);
-      final favs = results[0] as List<dynamic>;
-      final notiSettings = results[1] as Map<String, dynamic>;
+      final favs = await _userService.getFavorites();
       if (mounted) {
         setState(() {
           _favorites = favs;
-          _isSubscriptionAlarmOn = notiSettings['subscriptionScheduleNotificationEnabled'] ?? true;
-          _isListingAlarmOn = notiSettings['listingDateNotificationEnabled'] ?? false;
         });
       }
     } catch (e) {
@@ -542,7 +511,7 @@ class MyPageScreenState extends State<MyPageScreen> {
 
         final bool isNotificationOn = _activeNotifications[ipoId] ?? true;
 
-        return _buildIpoCard(
+        return IpoCard(
           score: score,
           ipoName: ipoName,
           leadManager: leadManager,
@@ -602,120 +571,6 @@ class MyPageScreenState extends State<MyPageScreen> {
     );
   }
 
-  Widget _buildStatusBadge(String status) {
-    Color bg;
-    Color text;
-    switch (status) {
-      case '수요예측':
-        bg = const Color(0xFFFFEAEA); text = const Color(0xFFD32F2F);
-        break;
-      case '상장':
-        bg = const Color(0xFFE2F6EA); text = const Color(0xFF107C41);
-        break;
-      case '청약종료':
-        bg = const Color(0xFFF3F3F3); text = AppColors.textGray;
-        break;
-      case '환불':
-        bg = const Color(0xFFFFF4E8); text = const Color(0xFFFF5E00);
-        break;
-      default: // 청약
-        bg = AppColors.bgLightBlue; text = AppColors.primary;
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-      child: Text(status, style: TextStyle(color: text, fontSize: 11, fontWeight: FontWeight.bold)),
-    );
-  }
-
-  Widget _buildIpoCard({
-    required int score,
-    required String ipoName,
-    required String leadManager,
-    required String dateLabel,
-    String? status,
-    required Widget trailing,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.borderGray.withOpacity(0.5)),
-          boxShadow: [BoxShadow(
-            color: AppColors.black.withOpacity(0.015),
-            blurRadius: 10, offset: const Offset(0, 4),
-          )],
-        ),
-        child: Row(
-          children: [
-            // 좌측: 점수 + 상태뱃지
-            SizedBox(
-              width: 80,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '• $score점',
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  if (status != null) ...[
-                    const SizedBox(height: 6),
-                    _buildStatusBadge(status),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            // 중앙: 종목명 + 주관사 + 날짜
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    ipoName,
-                    style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    leadManager,
-                    style: const TextStyle(
-                      color: AppColors.textGray, fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    dateLabel,
-                    style: const TextStyle(
-                      color: AppColors.textGray, fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // 우측: 액션 영역
-            trailing,
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildSettingsTab() {
     final user = AuthManager.instance.user;
     return SingleChildScrollView(
@@ -735,7 +590,7 @@ class MyPageScreenState extends State<MyPageScreen> {
                 const SizedBox(width: 12),
                 (() {
                   final rawType = user?.investmentType ?? '#분석대기중';
-                  final colors = _getBadgeColors(rawType);
+                  final colors = getBadgeColors(rawType);
                   return Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(

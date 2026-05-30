@@ -23,7 +23,7 @@ class ChatbotDrawer extends StatefulWidget {
 }
 
 class _ChatbotDrawerState extends State<ChatbotDrawer> {
-  final ChatService _chatService = ChatService();
+  final ChatService _chatService = ChatService.instance;
   List<dynamic> _sessions = [];
   bool _isLoading = true;
 
@@ -225,12 +225,16 @@ class _ChatbotDrawerState extends State<ChatbotDrawer> {
 
   @override
   Widget build(BuildContext context) {
-    final activeSessions = _sessions.where((s) => s['lastMessagePreview'] != null).toList();
-    final visibleSessions = (!widget.hasMessages && widget.currentSessionId != null)
-        ? activeSessions.where((s) => s['sessionId'].toString() != widget.currentSessionId).toList()
-        : activeSessions;
-    final pinnedSessions = visibleSessions.where((s) => s['pinned'] == true).toList();
-    final recentSessions = visibleSessions.where((s) => s['pinned'] != true).toList();
+    final excludeId = (!widget.hasMessages && widget.currentSessionId != null)
+        ? widget.currentSessionId
+        : null;
+    final pinnedSessions = <dynamic>[];
+    final recentSessions = <dynamic>[];
+    for (final s in _sessions) {
+      if (s['lastMessagePreview'] == null) continue;
+      if (excludeId != null && s['sessionId'].toString() == excludeId) continue;
+      (s['pinned'] == true ? pinnedSessions : recentSessions).add(s);
+    }
 
     return Drawer(
       backgroundColor: AppColors.white,

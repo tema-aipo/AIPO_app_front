@@ -19,7 +19,7 @@ class IpoDetailScreen extends StatefulWidget {
 }
 
 class _IpoDetailScreenState extends State<IpoDetailScreen> {
-  final IpoService _ipoService = IpoService();
+  final IpoService _ipoService = IpoService.instance;
   bool _isLoading = true;
   Map<String, dynamic>? _detailData;
   bool _isFavorite = false;
@@ -505,7 +505,6 @@ class _IpoDetailScreenState extends State<IpoDetailScreen> {
     );
   }
 
-  // [섹션 2] AIPO 매력지수 (기존 완벽한 카드 그대로 사용)
   Widget _buildScoreCard(
       Map<String, dynamic> attraction, Map<String, dynamic> attractiveness) {
     final selected = attractiveness['selected'] as Map<String, dynamic>?;

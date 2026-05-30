@@ -4,11 +4,12 @@ import '../network/api_endpoints.dart';
 import '../models/auth_manager.dart';
 import '../network/auth_interceptor.dart';
 
-/// 인증 관련 API 호출을 담당하는 서비스 클래스
 class AuthService {
+  static final AuthService instance = AuthService._();
+  AuthService._();
+
   final Dio _dio = DioClient.instance.dio;
 
-  // ── 로그인 아이디 중복 확인 ─────────────────────────
   /// 사용 가능한 아이디인 경우 true, 중복되었거나 사용 불가능한 경우 false 반환
   Future<bool> checkLoginIdAvailability(String loginId) async {
     try {
@@ -23,7 +24,6 @@ class AuthService {
     }
   }
 
-  // ── 회원가입 ──────────────────────────────────────────
   /// 성공 시 userId를 반환, 실패 시 에러 메시지 문자열을 throw
   Future<int> register({
     required String loginId,
@@ -53,8 +53,6 @@ class AuthService {
     }
   }
 
-  // ── 로그인 ────────────────────────────────────────────
-  /// 성공 시 UserModel을 AuthManager에 저장하고 true 반환
   Future<void> login({
     required String loginId,
     required String password,
@@ -107,8 +105,6 @@ class AuthService {
     }
   }
 
-  // ── 자동 로그인 (세션 복구) ──────────────────────────
-  /// 앱 시작 시 저장된 토큰이 있으면 유저 정보를 불러와 세션을 복구합니다.
   Future<bool> restoreSession() async {
     final token = await AuthInterceptor.getAccessToken();
     if (token == null) return false;
@@ -135,7 +131,6 @@ class AuthService {
     }
   }
 
-  // ── 로그아웃 ──────────────────────────────────────────
   Future<void> logout() async {
     try {
       await _dio.post(ApiEndpoints.logout);

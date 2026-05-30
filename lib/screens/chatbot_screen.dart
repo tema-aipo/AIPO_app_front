@@ -14,7 +14,7 @@ class ChatbotScreen extends StatefulWidget {
 }
 
 class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProviderStateMixin {
-  final ChatService _chatService = ChatService();
+  final ChatService _chatService = ChatService.instance;
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   
@@ -174,7 +174,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> with SingleTickerProvider
   }
 
   void _scrollToBottom() {
-    Future.delayed(const Duration(milliseconds: 100), () {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,

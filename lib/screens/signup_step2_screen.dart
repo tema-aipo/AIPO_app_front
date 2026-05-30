@@ -15,7 +15,7 @@ class SignupStep2Screen extends StatefulWidget {
 }
 
 class _SignupStep2ScreenState extends State<SignupStep2Screen> {
-  final InvestmentProfileService _profileService = InvestmentProfileService();
+  final InvestmentProfileService _profileService = InvestmentProfileService.instance;
 
   int _currentIndex = 0;
   List<int?> _selectedAnswers = [];

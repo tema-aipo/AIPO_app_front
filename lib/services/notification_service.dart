@@ -232,7 +232,6 @@ class NotificationService extends ChangeNotifier {
     _listingAlarmEnabled = prefs.getBool(_globalAlarmLstKey) ?? true;
   }
 
-  /// 알림 목록 + dismiss ID 저장
   Future<void> _saveToPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
@@ -240,13 +239,11 @@ class NotificationService extends ChangeNotifier {
     await prefs.setStringList(_dismissedIdsKey, _dismissedIds.toList());
   }
 
-  /// 종목별 알림 설정 저장
   Future<void> _saveIpoNotifMap() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_ipoNotifMapKey, jsonEncode(_ipoNotificationEnabled));
   }
 
-  /// 전역 알림 설정 저장
   Future<void> _saveGlobalSettings() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_globalAlarmSubKey, _subscriptionAlarmEnabled);

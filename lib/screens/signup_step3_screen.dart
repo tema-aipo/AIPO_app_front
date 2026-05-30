@@ -29,8 +29,8 @@ class SignupStep3Screen extends StatefulWidget {
 
 class _SignupStep3ScreenState extends State<SignupStep3Screen> {
   bool _isSubmittingProfile = false;
-  final AuthService _authService = AuthService();
-  final InvestmentProfileService _profileService = InvestmentProfileService();
+  final AuthService _authService = AuthService.instance;
+  final InvestmentProfileService _profileService = InvestmentProfileService.instance;
 
   // 백엔드로부터 받은 투자성향 결과
   Map<String, dynamic>? _profileResult;

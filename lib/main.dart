@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/main_screen.dart';
 import 'models/auth_manager.dart';
@@ -19,9 +20,9 @@ void main() async {
   DioClient.instance.initialize();
   
   // 앱 시작 시 자동 로그인(세션 복구) 시도
-  await AuthService().restoreSession();
+  await AuthService.instance.restoreSession();
   
-  runApp(const MyApp());
+  runApp(const ProviderScope(child: MyApp()));
 }
 
 class MyApp extends StatelessWidget {

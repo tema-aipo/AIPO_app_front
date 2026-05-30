@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../widgets/status_badge.dart';
 import 'ipo_detail_screen.dart';
 import '../services/ipo_service.dart';
 import '../services/user_service.dart';
@@ -80,8 +81,8 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class CalendarScreenState extends State<CalendarScreen> {
-  final IpoService _ipoService = IpoService();
-  final UserService _userService = UserService();
+  final IpoService _ipoService = IpoService.instance;
+  final UserService _userService = UserService.instance;
   late DateTime _currentDate;
   DateTime? _selectedDate;
   bool _isLoading = true;
@@ -140,6 +141,7 @@ class CalendarScreenState extends State<CalendarScreen> {
       final rawData = await _ipoService.getCalendarData(monthStr, selectedDate: selectedDateParam);
 
       final Map<String, List<CalendarEvent>> newMap = {};
+      final Map<String, Set<String>> seenKeys = {};
 
       void mergeCells(List<dynamic> cells) {
         for (var cell in cells) {
@@ -171,10 +173,9 @@ class CalendarScreenState extends State<CalendarScreen> {
                 leadManager: null,
               );
 
-              final existing = newMap[date] ??= [];
               final key = '${event.ipoId}_${event.type}';
-              if (!existing.any((e) => '${e.ipoId}_${e.type}' == key)) {
-                existing.add(event);
+              if ((seenKeys[date] ??= {}).add(key)) {
+                (newMap[date] ??= []).add(event);
               }
             }
           }
@@ -639,35 +640,6 @@ class CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  Widget _buildStatusBadge(String status) {
-    Color bg;
-    Color text;
-    switch (status) {
-      case '수요예측':
-        bg = const Color(0xFFFFEAEA); text = const Color(0xFFD32F2F);
-        break;
-      case '상장':
-        bg = const Color(0xFFE2F6EA); text = const Color(0xFF107C41);
-        break;
-      case '청약종료':
-        bg = const Color(0xFFF3F3F3); text = AppColors.textGray;
-        break;
-      case '환불':
-        bg = const Color(0xFFFFF0E6); text = const Color(0xFFFF5E00);
-        break;
-      case '관심':
-        bg = const Color(0xFFF5E6FF); text = const Color(0xFF9E00FF);
-        break;
-      default: // 청약
-        bg = AppColors.bgLightBlue; text = AppColors.primary;
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-      child: Text(status, style: TextStyle(color: text, fontSize: 11, fontWeight: FontWeight.bold)),
-    );
-  }
-
   Widget _buildIpoCard({
     required int score,
     required String ipoName,
@@ -723,7 +695,7 @@ class CalendarScreenState extends State<CalendarScreen> {
                   ],
                   if (status != null) ...[
                     const SizedBox(height: 4),
-                    _buildStatusBadge(status),
+                    StatusBadge(status: status),
                   ],
                 ],
             ),
