@@ -35,4 +35,12 @@ class ApiEndpoints {
   static const String investmentProfileResults = '/investment-profile/results';
   static const String investmentProfileSkip = '/investment-profile/skip';
   static const String investmentProfileRetest = '/users/me/investment-profile/retest';
+
+  // ── Notifications ─────────────────────────────────────
+  static const String notificationSettings = '/users/me/notifications';
+  static const String notificationItems    = '/users/me/notifications/items';
+  static const String notificationReadAll  = '/users/me/notifications/read-all';
+  static String notificationRead(String id)   => '/users/me/notifications/$id/read';
+  static String notificationDelete(String id) => '/users/me/notifications/$id';
+  static String favoriteNotification(String ipoId) => '/users/me/favorites/$ipoId/notification';
 }

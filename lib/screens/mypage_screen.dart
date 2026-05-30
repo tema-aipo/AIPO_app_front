@@ -65,17 +65,20 @@ class MyPageScreenState extends State<MyPageScreen> {
         listing: lstAlarm as bool,
       );
 
+      final ipoNotifMap = <String, bool>{};
+      for (var item in favs) {
+        final id = item['ipoId']?.toString() ?? '';
+        if (id.isNotEmpty) {
+          ipoNotifMap[id] = item['notificationEnabled'] as bool? ?? true;
+        }
+      }
+      NotificationService.instance.syncIpoNotificationMap(ipoNotifMap);
+
       setState(() {
         _favorites = favs;
-        for (var item in favs) {
-          final id = item['ipoId']?.toString() ?? '';
-          if (id.isNotEmpty) {
-            // NotificationService의 로컬 캐시에서 종목별 알림 설정 읽기
-            // (백엔드 API 준비 전까지는 SharedPreferences 기반)
-            _activeNotifications[id] =
-                NotificationService.instance.isIpoNotificationEnabled(id);
-          }
-        }
+        _activeNotifications
+          ..clear()
+          ..addAll(ipoNotifMap);
         _isSubscriptionAlarmOn = subAlarm;
         _isListingAlarmOn = lstAlarm;
         _isLoading = false;
@@ -531,13 +534,12 @@ class MyPageScreenState extends State<MyPageScreen> {
                   final messenger = ScaffoldMessenger.of(context);
                   setState(() => _activeNotifications[ipoId] = newValue);
 
-                  // NotificationService에 즉시 반영 (SharedPreferences 영속화)
-                  await NotificationService.instance
-                      .setIpoNotificationEnabled(ipoId, newValue);
-
-                  // [백엔드 연동 시] 아래 줄 추가:
-                  // await _userService.updateIpoNotificationSetting(
-                  //   ipoId: ipoId, enabled: newValue);
+                  try {
+                    await NotificationService.instance
+                        .setIpoNotificationEnabled(ipoId, newValue);
+                  } catch (_) {
+                    setState(() => _activeNotifications[ipoId] = !newValue);
+                  }
 
                   messenger.showSnackBar(
                     SnackBar(

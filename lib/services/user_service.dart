@@ -28,10 +28,10 @@ class UserService {
     required bool listingAlarm,
   }) async {
     await _dio.patch(
-      '/users/me/notifications',
+      ApiEndpoints.notificationSettings,
       data: {
-        'subscriptionAlarm': subscriptionAlarm,
-        'listingAlarm': listingAlarm,
+        'subscriptionScheduleNotificationEnabled': subscriptionAlarm,
+        'listingDateNotificationEnabled': listingAlarm,
       },
     );
   }
