@@ -9,7 +9,12 @@
       "Bash(gh api *)",
       "PowerShell(gh api repos/tema-aipo/AIPO_BE/git/trees/main?recursive=1 --jq '.tree[] | select\\(.path | test\\(\\\\\"home|attractive|Home|Attractive\\\\\"\\)\\) | .path')",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(flutter analyze *)"
+      "Bash(flutter analyze *)",
+      "Bash(git push *)",
+      "Bash(dart analyze *)",
+      "Bash(flutter pub *)",
+      "Bash(git add *)",
+      "Bash(dir -R -Filter \"*backend*\" -ErrorAction SilentlyContinue)"
     ]
   }
 }
